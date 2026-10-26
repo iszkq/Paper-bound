@@ -1,0 +1,7 @@
+storage
+output
+.playwright-cli
+__pycache__
+.git
+.env
+test_server.py

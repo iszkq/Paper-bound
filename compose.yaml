@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NOTES_DATA_DIR: /data
+      NOTES_SECURE_COOKIES: '1'
+    volumes:
+      - notes-data:/data
+    expose:
+      - '8080'
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      NOTES_DOMAIN: ${NOTES_DOMAIN:?Set NOTES_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+volumes:
+  notes-data:
+  caddy-data:
+  caddy-config:

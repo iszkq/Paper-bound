@@ -1,0 +1,24 @@
+:root { --shortcuts-width: 420px; --shortcuts-padding: 24px; --shortcut-key-height: 24px; }
+.shortcuts-panel { position: fixed; z-index: 8; top: var(--topbar-height, 60px); bottom: 0; right: 0; width: min(var(--shortcuts-width), 100vw); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line-strong); box-shadow: var(--shadow); }
+.shortcuts-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px var(--shortcuts-padding); border-bottom: 1px solid var(--line); }
+.shortcuts-header h2 { margin: 0; font-size: 18px; font-weight: 650; }
+.shortcuts-header .small-icon-btn { width: 36px; height: 36px; font-size: 24px; }
+.shortcuts-search { padding: 16px var(--shortcuts-padding); border-bottom: 1px solid var(--line); }
+.shortcuts-search p { margin: 0 0 14px; font-size: 12px; color: var(--muted); line-height: 1.8; }
+.shortcuts-search input { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); font-size: 14px; }
+.shortcuts-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--shortcuts-padding) 24px; overscroll-behavior: contain; }
+.shortcuts-list section { margin-top: 24px; }
+.shortcuts-list h3 { font-size: 14px; font-weight: 650; margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line-strong); }
+.shortcut-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.7; }
+.shortcut-row > span:first-child { min-width: 0; }
+.shortcut-keys, .shortcut-chord { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.shortcut-keys { flex-shrink: 0; max-width: 60%; }
+.shortcut-chord { flex-wrap: nowrap; }
+.shortcut-keys kbd { display: inline-flex; align-items: center; justify-content: center; min-width: var(--shortcut-key-height); min-height: var(--shortcut-key-height); padding: 0 5px; border: 1px solid var(--line); border-bottom-color: var(--line-strong); border-radius: 4px; background: var(--page); color: #48505a; font-family: var(--font-ui); font-size: 11px; line-height: 1.5; white-space: nowrap; }
+.shortcut-or { color: var(--muted); font-size: 11px; margin: 0 2px; }
+.shortcuts-footer, .shortcuts-empty { font-size: 12px; line-height: 1.8; color: var(--muted); }
+.shortcuts-footer { padding: 14px var(--shortcuts-padding); border-top: 1px solid var(--line); }
+#shortcutsToggle[aria-expanded="true"] { color: var(--red); background: var(--red-soft); }
+@media(min-width:1440px) { .shortcuts-open .editor-shell, .shortcuts-open .preview-wrap { margin-right: var(--shortcuts-width); } }
+@media(max-width:600px) { :root { --shortcuts-padding: 18px; } .shortcuts-header { padding-top: 14px; padding-bottom: 14px; } }
+@media print { .shortcuts-panel { display: none !important; } .shortcuts-open .preview-wrap { margin-right: 0; } }

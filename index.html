@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f7">
+  <link rel="icon" href="data:,">
+  <title>纸间 · 阅读笔记</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="editor.css">
+  <link rel="stylesheet" href="workspace.css">
+  <link rel="stylesheet" href="shortcuts.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">纸</span><span>纸间<small>阅读与表达</small></span></div>
+      <nav class="top-tabs" aria-label="工作区视图">
+        <button class="tab active" data-view="edit">编辑</button>
+        <button class="tab" data-view="preview">版面预览</button>
+      </nav>
+      <button class="btn btn-quiet" id="libraryToggle" title="文档与文件夹" aria-label="文档与文件夹"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6.5h7l2 2H21v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9h18"/></svg><span class="btn-label">文件库</span></button>
+      <button class="btn btn-quiet" id="bibleOpen" title="查找圣经经文" aria-label="查找圣经经文"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/></svg><span class="btn-label">经文</span></button>
+      <div class="top-spacer"></div>
+      <button class="save-state sync-state" id="syncStatusBtn" title="查看同步状态或立即重试"><span class="save-dot"></span><span id="saveText">已保存到本机</span></button>
+      <button class="btn btn-quiet" id="newBtn" title="新建空白笔记" aria-label="新建空白笔记"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label">新建空白</span></button>
+      <button class="btn btn-quiet" id="importBtn" title="导入 TXT、Markdown 或 HTML" aria-label="导入文章"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6h14v-6"/></svg><span class="btn-label">导入文章</span></button>
+      <button class="btn btn-quiet" id="resetBtn" title="恢复示例内容" aria-label="恢复示例内容"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg><span class="btn-label">重置示例</span></button>
+      <button class="btn btn-primary" id="printBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/></svg><span class="btn-label">导出 PDF</span></button>
+      <button class="btn btn-quiet" id="accountOpen" aria-label="账号" title="账号"><span id="accountLabel">登录 / 注册</span></button>
+      <input class="import-input" id="importFile" type="file" accept=".txt,.md,.markdown,.html,.htm,text/plain,text/markdown,text/html" aria-label="选择要导入的文章">
+    </header>
+    <div class="rich-toolbar" role="toolbar" aria-label="文字格式">
+      <button class="format-btn" data-format="undo" title="撤销 Ctrl+Z" aria-label="撤销">↶</button><button class="format-btn" data-format="redo" title="重做 Ctrl+Y" aria-label="重做">↷</button><span class="format-divider"></span>
+      <button class="format-btn" data-format="bold" title="加粗 Ctrl+B" aria-label="加粗" aria-pressed="false"><b>B</b></button><button class="format-btn" data-format="italic" title="斜体 Ctrl+I" aria-label="斜体" aria-pressed="false"><i>I</i></button>
+      <select class="format-select format-type-select" id="textTypePicker" aria-label="文本类型"><option value="p">普通文本</option><option value="h1">一级标题</option><option value="h2">二级标题</option><option value="h3">三级标题</option><option value="h4">四级标题</option><option value="h5">五级标题</option><option value="h6">六级标题</option><option value="mixed" disabled hidden>混合格式</option></select>
+      <select class="format-select" id="fontSizePicker" aria-label="文字大小" title="选中文字设置字号，可恢复默认字号"><option value="" selected>默认字号</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="14">14</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="20">20</option><option value="22">22</option><option value="24">24</option><option value="28">28</option><option value="32">32</option><option value="36">36</option><option value="40">40</option><option value="48">48</option><option value="56">56</option><option value="64">64</option><option value="72">72</option><option value="mixed" disabled hidden>混合字号</option></select>
+      <select class="format-select format-font-select" id="fontFamilyPicker" aria-label="字体" title="统一修改整篇文档的显示字体，无需选中文字"><option value="">默认字体</option><option value="FangSongGB2312">仿宋 GB2312</option><option value="KaiTiGB2312">楷体 GB2312</option><option value="XiaozhangReading">小张阅读体</option><option value="XiaozhangReadingLight">小张阅读体 · 细体</option><option value="XiaozhangReadingBold">小张阅读体 · 粗体</option><option value="HanChanFangKai">寒蝉活仿楷</option></select>
+      <span class="format-divider"></span>
+      <details class="tool-menu" data-palette="text"><summary aria-label="文字颜色"><span style="border-bottom:3px solid #b73530">A</span> 文字色 <span class="chevron">▾</span></summary><div class="tool-popover"></div></details>
+      <details class="tool-menu" data-palette="highlight"><summary aria-label="文字高亮"><span style="background:#fff2a8">A</span> 高亮 <span class="chevron">▾</span></summary><div class="tool-popover"></div></details>
+      <details class="tool-menu" data-palette="underline"><summary aria-label="彩色下划线"><span class="line-preview">U</span> 下划线 <span class="chevron">▾</span></summary><div class="tool-popover"></div></details>
+      <details class="tool-menu" data-palette="wave"><summary aria-label="彩色波浪线"><span class="line-preview wavy">U</span> 波浪线 <span class="chevron">▾</span></summary><div class="tool-popover"></div></details>
+      <span class="format-divider"></span>
+      <details class="tool-menu"><summary aria-label="列表">☷ 列表 <span class="chevron">▾</span></summary><div class="tool-popover list-popover"><button class="popover-option" data-list="unordered">• 无序列表</button><button class="popover-option" data-list="ordered">1. 有序列表</button><button class="popover-option" data-list="task">☐ 任务列表</button></div></details>
+      <button class="format-btn" data-format="removeFormat" title="清除所选文字格式" aria-label="清除格式">清除格式</button>
+      <button class="format-btn" id="shortcutsToggle" aria-label="键盘快捷键" aria-expanded="false" aria-controls="shortcutsPanel" title="键盘快捷键 Ctrl+Alt+/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6 9h2m3 0h2m3 0h2M6 12h2m3 0h2m3 0h2M7 16h10"/></svg>快捷键</button>
+      <span class="toolbar-hint" id="formatHint">选中文字即可标注 · 正文和分析均适用</span>
+    </div>
+    <div class="editor-shell">
+      <main class="workspace">
+        <div class="editor-head">
+          <div class="crumb"><span>我的笔记</span><span>/</span><span>阅读分析</span><span>/</span><span>正在编辑</span></div>
+          <input class="title-input" id="titleInput" aria-label="笔记标题" placeholder="未命名笔记">
+          <div class="meta-row"><label>作者 <input class="meta-field" id="authorInput" aria-label="作者"></label><label>来源 <input class="meta-field" id="sourceInput" aria-label="来源"></label><label>日期 <input class="meta-field date" id="dateInput" aria-label="日期"></label><label>日期框标题 <input class="meta-field" id="dateHeadingInput" aria-label="日期框标题"></label><label>主题 <input class="meta-field" id="topicInput" aria-label="主题"></label><label>右侧刊头 <input class="meta-field" id="mastheadInput" aria-label="右侧刊头"></label></div>
+        </div>
+      <section class="block-section" aria-label="文前栏目"><div class="block-section-head"><h2>文前栏目</h2><button class="btn btn-quiet" data-add-block="top">＋ 添加文前栏目</button></div><div id="topBlockEditors"></div></section>
+      <div class="editor-toolbar"><button class="btn" id="addBtn">＋ 添加段落</button><span class="tip">左侧文段，右侧分析 · <span id="panelCount"></span></span></div>
+      <div class="editor-columns-head"><span>文段</span><span>对应分析</span></div>
+      <section class="article-list" id="articleList" aria-label="文段与分析编辑区"></section>
+      <div class="bottom-actions"><button class="btn" id="addBottom">＋ 添加下一段</button></div>
+      <section class="block-section bottom-section" aria-label="文后栏目"><div class="block-section-head"><h2>文后栏目 · 总结与延伸</h2><button class="btn" data-add-block="bottom">＋ 添加底部总结</button></div><div id="bottomBlockEditors"></div></section>
+      </main>
+    </div>
+    <section class="preview-wrap" aria-label="A4 版面预览">
+      <div class="preview-toolbar"><span>版面预览</span><span>·</span><span>A4 纵向</span><div class="preview-modes" aria-label="选择成品模板"><button class="preview-mode-btn active" data-layout="handout">讲义版</button><button class="preview-mode-btn" data-layout="table">表格版</button></div><span class="spacer"></span><span>编辑内容后预览会自动更新</span><button class="btn" id="printPreviewBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/></svg>打印 / PDF</button></div>
+      <article class="paper" id="paper"></article>
+    </section>
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+  <aside class="shortcuts-panel" id="shortcutsPanel" aria-labelledby="shortcutsTitle" hidden>
+    <header class="shortcuts-header"><h2 id="shortcutsTitle">键盘快捷键</h2><button class="small-icon-btn" id="shortcutsClose" aria-label="关闭快捷键面板">×</button></header>
+    <div class="shortcuts-search"><p>面板保持打开，可以一边编辑一边查看。</p><input id="shortcutsSearch" type="search" aria-label="搜索快捷键" placeholder="搜索操作或按键" autocomplete="off"></div>
+    <div class="shortcuts-list" id="shortcutsList"></div>
+    <footer class="shortcuts-footer">文字标注作用于选中文字；标题和列表也可在光标处使用。</footer>
+  </aside>
+  <dialog class="library-dialog" id="libraryDialog" aria-labelledby="libraryTitle">
+    <header class="library-dialog-header"><div><h2 id="libraryTitle">文件库</h2><p>整理文档，也整理每一次阅读。</p></div><button class="small-icon-btn" id="libraryClose" aria-label="关闭文件库">×</button></header>
+    <div class="library-actions"><button class="btn" id="newFolderBtn">新建文件夹</button><button class="btn" id="openFolderBtn">打开文件夹</button><button class="btn btn-primary" id="newDocumentBtn">＋ 新建文档</button><label class="library-search-label"><input id="documentSearch" aria-label="搜索文档" type="search" placeholder="搜索文档名称"></label></div>
+    <div class="library-browser"><nav id="folderTree" class="folder-tree" aria-label="文件夹"></nav><section class="library-documents"><div class="document-list-head"><h3 id="currentFolderName">全部文档</h3><button id="renameFolderBtn" class="text-button" aria-label="管理当前文件夹">管理文件夹</button></div><div id="childFolders" class="child-folders"></div><div id="documentList" class="document-list"></div></section></div>
+    <footer class="library-footer"><span>拖动可排序，拖到文件夹中可归档；也可用 Alt + ↑ / ↓ 排序。</span><button id="logoutBtn" class="text-button">退出当前账号</button></footer>
+  </dialog>
+  <dialog class="bible-dialog" id="bibleDialog" aria-labelledby="bibleTitle"><header class="bible-header"><div><h2 id="bibleTitle">圣经经文</h2><p id="bibleStatus">正在加载经文…</p></div><button class="small-icon-btn" id="bibleClose" aria-label="关闭">×</button></header><div class="bible-tabs"><button class="active" data-bible-tab="browse">卷章浏览</button><button data-bible-tab="search">经文搜索</button></div><section class="bible-controls" id="bibleBrowseControls"><label>卷名<select id="bibleBook"></select></label><label>章节<select id="bibleChapter"></select></label></section><section class="bible-controls" id="bibleSearchControls" hidden><label class="bible-search">搜索经文<input id="bibleQuery" type="search" placeholder="输入多个关键词，以空格分隔"></label><button id="bibleSearchButton" class="btn">搜索</button></section><div class="bible-results" id="bibleResults" aria-live="polite"></div><footer class="bible-footer"><span id="bibleSelectedCount">已选 0 节</span><button id="bibleClearSelection" class="btn">清除多选</button><button id="bibleCopy" class="btn btn-primary">复制所选经文</button></footer></dialog>
+  <script src="engine.js"></script>
+  <script src="vendor/html2canvas.min.js"></script>
+  <script src="workspace.js"></script>
+  <script src="library-order.js"></script>
+  <script src="cloud.js"></script>
+  <script src="shortcuts.js"></script>
+</body>
+</html>

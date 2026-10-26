@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>登录 · 纸间</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="auth.css"></head>
+<body class="auth-page">
+  <a class="auth-brand" href="index.html"><span class="brand-mark">纸</span><span>纸间<small>阅读与表达</small></span></a>
+  <main class="auth-main">
+    <section class="auth-form-panel" aria-labelledby="authTitle">
+      <h1 id="authTitle">让每一次阅读，都有迹可循。</h1>
+      <p class="auth-intro" id="authIntro">登录纸间，继续你的阅读与思考。</p>
+      <form id="loginForm">
+        <label for="username">用户名</label><input id="username" name="username" autocomplete="username" minlength="2" maxlength="32" required autofocus>
+        <div class="auth-password-label"><label for="password">密码</label><button type="button" class="auth-text-button" id="togglePassword" aria-label="显示密码">显示密码</button></div>
+        <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="256" required>
+        <p class="password-hint" id="passwordHint" hidden>至少 8 个字符，建议使用不常用的长密码。</p>
+        <div id="confirmField" hidden><label for="confirmPassword">确认密码</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="256"></div>
+        <div id="registrationField" hidden><label for="registrationCode">注册码</label><input id="registrationCode" name="registrationCode" autocomplete="off" maxlength="64" aria-describedby="registrationHint"><p class="password-hint" id="registrationHint">请向管理员获取注册码。</p></div>
+        <p id="loginError" class="auth-error" role="alert"></p>
+        <button class="auth-submit" type="submit" id="loginSubmit">登录</button>
+      </form>
+      <p class="auth-switch"><span id="switchHint">还没有账号？</span> <button class="auth-text-button" id="switchAuth">创建账号</button></p>
+      <a class="auth-guest" href="index.html">先在本机使用 →</a>
+    </section>
+
+  </main>
+  <script src="login.js"></script>
+</body></html>
