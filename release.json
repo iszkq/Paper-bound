@@ -1,8 +1,8 @@
 {
-  "version": "2026.10.27.3",
+  "version": "2026.10.27.4",
   "files": {
     "admin.css": "7c3dd88c7e5b986d00e3e9635adcd8db364a960f1726dc013ad4f65677a0a12f",
-    "admin.html": "bd37740b373b84305b08d61e2145b00778b195a261b4eefda521e565e0fb2750",
+    "admin.html": "cbf17d3bfb69e32d4f04601cd5720e5ff2d6d439ec749c0e03f83a71160b50d4",
     "admin.js": "51efcc340dccea468efefac53e027214769aff1fdeb9525b981605aa3c3f843b",
     "auth.css": "414e40dd0da9317e2a19f7e2848004bf54a65b5153b91256d30051cd0f5cc18b",
     "cloud.js": "beec999ef5e16c0197f445fbe34d4dbf87584a9712db0499f9d9e90c9e2e5330",
@@ -16,9 +16,9 @@
     "fonts/XiaozhangReading-Bold.ttf": "ab71cf8584c38c120553ef16c63b1231e376bbf3da94daac86a429897f1f069a",
     "fonts/XiaozhangReading-Light.ttf": "953312d3373b14326ac82cbcede5f0c1aab9a46211c11e2270ddc07e38516d7f",
     "fonts/XiaozhangReading-Regular.ttf": "e978e0fd5ff694b19ce83389710b42beea90a65b5441bb21ca37c2350de73285",
-    "index.html": "fc17fd10d99cc1776a52fcbb908dd1648549a10057db9534d3315733e5db4a55",
+    "index.html": "6768cf8080b1aeb655533ccefea72420444ba4399644ba42b0b5cc080d96aab7",
     "library-order.js": "0878c39e72a5c4189354a5c2c1affa170c1db29a2aa2ed84697040271a18ead1",
-    "login.html": "fd759d131e6ec59abf1e2c70115891b3418470d8b2dff663e7cf87b35d1e6782",
+    "login.html": "9eda633177127512c0342c72be1bd874fee9550c7c8ecc1ec7d89a56638b533c",
     "login.js": "b4ad9e17f299263bd390d89d59987606e747a308bfbd8c292c0ca6fd85c95ea1",
     "server.py": "922f5f21694c54c74229c584314d77fdb7118b222e25e5fabc27aa792206f953",
     "shortcuts.css": "17dfa341e9c353c9153fa2926f70d0c0ee12ff953bbfe604a0295e5ec2048692",

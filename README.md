@@ -39,22 +39,22 @@ python server.py --host 127.0.0.1 --port 4173
 
 ## 服务器部署
 
-使用安装器后，程序位于 `/opt/paper-bound`，账号、文档和个人模板保存在 `/var/lib/paper-bound/notes.sqlite3`，更新备份位于 `/var/lib/paper-bound/backups/`。上传 ZIP 的解压目录只作为安装来源；手动运行 `sh start.sh` 时，数据默认位于项目内的 `storage/`，与安装器方式不同。
+使用安装器后，程序位于 `/opt/paper-bound`。安装时可指定自己的数据文件夹，也可用 `bash install.sh --port 9188 --data-dir /你的专用文件夹`。账号、文档和个人模板保存在该文件夹下的 `notes.sqlite3`，更新备份在其 `backups/` 中；更新默认沿用原路径和端口。已安装后用 `--data-dir` 换目录会先备份，再复制数据，原目录仍保留，目标已有数据库则停止。上传 ZIP 的解压目录只作为安装来源；手动运行 `sh start.sh` 时，数据默认位于项目内的 `storage/`，与安装器方式不同。
 
-**不需要容器。最简单只需：上传解压 → 运行安装命令 → 输入自己的端口 → 浏览器打开。**
+**不需要容器。最简单只需：上传解压 → 运行安装命令 → 输入端口和数据文件夹 → 浏览器打开。**
 
 ```sh
 cd /你的解压目录
 sudo bash install.sh
 ```
 
-1Panel 的 root 终端直接执行 `bash install.sh`，无需 sudo。也可以 `sudo bash install.sh --port 9188` 一次指定你自己的空闲端口；不强制使用某个端口。脚本会检查占用、设置开机自启，在更新前备份数据库，并默认保留已有端口。安装后访问脚本显示的 `http://内网IP:你选的端口`，FRP 目标端口填写相同值。
+1Panel 的 root 终端直接执行 `bash install.sh`，无需 sudo。也可以 `sudo bash install.sh --port 9188 --data-dir /data/paper-bound` 一次指定空闲端口和专用数据文件夹，路径包含空格时加引号。脚本会检查端口和目录、设置开机自启，并在更新前备份数据库。安装后访问脚本显示的 `http://内网IP:你选的端口`，FRP 目标端口填写相同值。
 
 需要采用 systemd 的 Linux。运行环境是宿主机 Python 3.10+；没有容器、npm build 或 pip 依赖。1Panel、内网 HTTP + IP、FRP 和手动启动的完整说明见 [非容器部署说明](deploy/README.md)。账号和同步需要服务进程，仅上传 HTML 到静态网站目录无法提供这部分功能。内网 HTTP 与公网 HTTPS 同时使用时，原生配置保持 `NOTES_SECURE_COOKIES=0`，让两个入口都能登录。
 
 `/api/version` 可以核对实际版本、运行文件是否完整，以及更新后是否忘记重启。JS/CSS 地址带发行版号，应用页面和脚本要求缓存重新验证。
 
-**后续更新：** 先确认文档已同步，把新版 ZIP 解压到新目录，在新目录运行 `bash install.sh`；端口提示回车保留原值。安装器会先备份数据库，再更新程序，保留账号和文档。不要删除 `/var/lib/paper-bound`；[完整更新说明](deploy/README.md#6-更新与迁移)包含迁移和故障处理步骤。
+**后续更新：** 先确认文档已同步，把新版 ZIP 解压到新目录，在新目录运行 `bash install.sh`；端口、数据目录提示均回车保留原值。安装器会先备份数据库，再更新程序，保留账号和文档。不要删除你设置的数据文件夹；[完整更新说明](deploy/README.md#6-更新与迁移)包含迁移和故障处理步骤。
 
 ### Docker（可选）
 
@@ -81,7 +81,7 @@ Caddy 自动申请 HTTPS 证书。Compose 已启用 Secure Cookie，必须通过
 
 ## 验证
 
-执行 `python -m unittest test_server -q` 验证服务端初始化、账号权限、用户数据隔离、同步版本冲突、管理操作和静态文件访问范围。测试使用临时数据库，不修改实际用户数据。
+执行 `python -m unittest test_server test_install_data -q` 验证服务端初始化、账号权限、用户数据隔离、同步版本冲突、管理操作、静态文件访问范围，以及安装器的数据目录与迁移逻辑。测试使用临时数据库，不修改实际用户数据。
 
 `output/playwright/` 保存开发阶段的浏览器验证脚本和截图。本次已验证管理员初始化、文件夹与文档拖放、同账号多浏览器同步、离线恢复、冲突保留双版本、账号隔离、字体作用范围和讲义/表格预览。
 

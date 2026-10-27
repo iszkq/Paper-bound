@@ -11,10 +11,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m unittest test_server -q
+      - run: python -m unittest test_server test_install_data -q
       - run: bash -n start.sh
       - run: bash -n install.sh
-      - run: bash install.sh --check --port 9188
+      - run: bash install.sh --check --port 9188 --data-dir '/srv/纸间 数据'
   javascript:
     runs-on: ubuntu-latest
     steps:
@@ -89,6 +89,55 @@ jobs:
           with urllib.request.urlopen('http://127.0.0.1:19189/api/setup') as response:
               assert json.load(response)['required'] is False
           PY
+      - name: Migrate existing accounts and templates to custom data folder
+        run: |
+          sudo bash install.sh --data-dir '/opt/1panel/纸间 数据'
+          sudo test -f '/opt/1panel/纸间 数据/notes.sqlite3'
+          sudo test -f '/var/lib/paper-bound/notes.sqlite3'
+          sudo bash install.sh
+          sudo python3 - <<'PY'
+          import json, sqlite3
+          from pathlib import Path
+          from deploy.install_data import previous
+          port, data = previous()
+          assert port == '19189' and data == '/opt/1panel/纸间 数据'
+          root = Path(data)
+          assert list((root / 'backups').glob('notes-*.sqlite3'))
+          with sqlite3.connect(str(root / 'notes.sqlite3')) as db:
+              library = json.loads(db.execute('SELECT content FROM libraries').fetchone()[0])
+              assert library['templates'][0]['name'] == '升级前的模板'
+              assert library['documents'][0]['data']['author'] == '保留作者'
+              assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+          PY
+          python3 - <<'PY'
+          import http.cookiejar, json, os, urllib.request
+          from pathlib import Path
+          saved = json.loads((Path(os.environ['RUNNER_TEMP']) / 'paper-bound-update-check.json').read_text(encoding='utf-8'))
+          client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+          request = urllib.request.Request('http://127.0.0.1:19189/api/login', data=json.dumps(saved['credentials']).encode(), headers={'Content-Type': 'application/json'})
+          with client.open(request) as response:
+              assert json.load(response)['user']['role'] == 'admin'
+          with client.open('http://127.0.0.1:19189/api/library') as response:
+              assert json.load(response)['library'] == saved['library']
+          PY
+      - name: Refuse overwriting another database and keep current service running
+        run: |
+          sudo install -d /srv/paper-bound-conflict
+          sudo cp /var/lib/paper-bound/notes.sqlite3 /srv/paper-bound-conflict/notes.sqlite3
+          if sudo bash install.sh --data-dir /srv/paper-bound-conflict; then
+            echo 'Installer unexpectedly overwrote another database'
+            exit 1
+          fi
+          curl --fail http://127.0.0.1:19189/api/version
+      - name: Support protected home folder as data directory
+        run: |
+          sudo bash install.sh --data-dir '/root/纸间 数据'
+          sudo bash install.sh
+          python3 - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen('http://127.0.0.1:19189/api/setup') as response:
+              assert json.load(response)['required'] is False
+          PY
       - name: Reject occupied port without stopping current service
         run: |
           python3 - <<'PY'
@@ -119,4 +168,20 @@ jobs:
           import json, urllib.request
           with urllib.request.urlopen('http://127.0.0.1:907/api/setup') as response:
               assert json.load(response)['required'] is False
+          PY
+  native-custom-first:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fresh install with custom folder and port
+        run: |
+          sudo bash install.sh --port 19181 --data-dir '/srv/纸间 首次安装'
+          sudo test -f '/srv/纸间 首次安装/notes.sqlite3'
+          sudo bash install.sh
+          python3 - <<'PY'
+          import json, urllib.request
+          from deploy.install_data import previous
+          assert previous() == ('19181', '/srv/纸间 首次安装')
+          with urllib.request.urlopen('http://127.0.0.1:19181/api/setup') as response:
+              assert json.load(response)['required'] is True
           PY
