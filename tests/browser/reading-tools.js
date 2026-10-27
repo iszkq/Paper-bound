@@ -100,7 +100,7 @@ async page => {
     check(await editor.locator('span').evaluateAll(es=>es.filter(el=>getComputedStyle(el).textDecorationLine.includes('underline')).length)>=2,'Overlapping line styles were not created for clear test');
     await test.locator('[data-palette=wave] > summary').click();
     await test.locator('[data-clear=wave]').click();
-    check(!await editor.evaluate(el=>{const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);walker.nextNode();for(let node=walker.currentNode.parentElement;node&&el.contains(node);node=node.parentElement)if(getComputedStyle(node).textDecorationLine.split(/\s+/).includes('underline'))return true;return false;}),'Remove underline/wave did not clear overlapping lines');
+    check(await editor.evaluate(el=>{let solid=false,wavy=false;const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);walker.nextNode();for(let node=walker.currentNode.parentElement;node&&el.contains(node);node=node.parentElement){const css=getComputedStyle(node);if(css.textDecorationLine.includes('underline')){if(css.textDecorationStyle==='wavy')wavy=true;else solid=true;}}return solid&&!wavy;}),'Removing wave did not preserve the solid underline');
     check(await editor.locator('strong').count()>0,'Clearing overlapping lines removed bold text');
     check(await test.evaluate(()=>getSelection().toString())==='重叠标注清除测试','Clearing overlapping lines lost selected text');
     await test.locator('#shortcutsToggle').click();

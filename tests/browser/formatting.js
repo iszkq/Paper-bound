@@ -13,25 +13,36 @@ async page => {
     async function clear(palette){await test.locator('[data-palette='+palette+'] > summary').click();await test.locator('[data-clear='+palette+']').click();}
     const nested='<strong><span style="color:#15803d;font-size:24px;font-style:italic;text-decoration:underline 2px #b73530;text-underline-offset:4px"><span style="text-decoration:underline wavy 2px #2563eb;text-underline-offset:4px">甲乙丙丁</span></span></strong>';
     for(const palette of ['underline','wave']){
+      const remaining=palette==='underline'?'wavy':'solid';
+      check(await test.locator('[data-clear='+palette+']').textContent()===(palette==='underline'?'移除下划线':'移除波浪线'),'Menu label does not identify its own line type');
       await seed(nested);await select(1,3);await clear(palette);
       const result=await states();
       check(result.map(s=>s.char).join('')==='甲乙丙丁','Clear changed text');
       check(result[0].lines.length===2&&result[3].lines.length===2,'Partial clear changed unselected annotations');
-      check(result[1].lines.length===0&&result[2].lines.length===0,'Partial clear left overlapping underlines');
+      check(result[1].lines.length===1&&result[1].lines[0]===remaining&&result[2].lines.length===1&&result[2].lines[0]===remaining,'Partial clear removed the other line type');
       check(result.every(s=>s.bold&&s.italic==='italic'&&s.size==='24px'&&s.color==='rgb(21, 128, 61)'),'Clear removed unrelated formatting');
       check(await test.evaluate(()=>getSelection().toString())==='乙丙','Partial clear lost selection');
       await editor.press('ControlOrMeta+Z');check((await states()).every(s=>s.lines.length===2),'Undo did not restore overlapping annotations');
       await editor.press('ControlOrMeta+Shift+Z');check(JSON.stringify(await states())===JSON.stringify(result),'Redo did not restore partial clear exactly');
       await select(1,3);
-      await clear(palette);check((await states()).slice(1,3).every(s=>s.lines.length===0),'Clearing twice added an underline');
+      await clear(palette);check(JSON.stringify(await states())===JSON.stringify(result),'Repeated clear changed the remaining line');
+      await seed(nested);await editor.press(palette==='underline'?'ControlOrMeta+U':'ControlOrMeta+Shift+U');
+      check((await states()).every(s=>s.lines.length===1&&s.lines[0]===remaining),'Shortcut cancellation removed the other line type');
+      await seed('<strong>实际叠加测试</strong>');await editor.press('ControlOrMeta+U');await editor.press('ControlOrMeta+Shift+U');
+      check((await states()).every(s=>s.lines.includes('solid')&&s.lines.includes('wavy')),'Applying both shortcuts did not retain both line types');
+      await clear(palette);check((await states()).every(s=>s.lines.length===1&&s.lines[0]===remaining&&s.bold),'Clear failed on annotations created with actual shortcuts');
+      // Reverse the nesting order so either line can be on the outer element.
+      await seed('<span style="text-decoration:underline wavy 2px blue"><u>甲乙丙丁</u></span>');await select(1,3);await clear(palette);
+      check((await states()).slice(1,3).every(s=>s.lines.length===1&&s.lines[0]===remaining),'Clear failed when wave is the outer annotation');
     }
     await seed('甲<span style="text-decoration:underline wavy 2px #b73530">乙</span>丙<u>丁</u>');
-    await clear('wave');check((await states()).every(s=>!s.lines.length),'Clear failed on mixed annotated/plain selection');
+    await clear('wave');check((await states()).slice(0,3).every(s=>!s.lines.length)&&(await states())[3].lines[0]==='solid','Wave clear changed a mixed plain/solid selection');
+    await clear('underline');check((await states()).every(s=>!s.lines.length),'Underline clear failed on mixed annotated/plain selection');
     await seed('<u>旧式下划线</u>');await editor.press('ControlOrMeta+U');check((await states()).every(s=>!s.lines.length),'Shortcut did not remove legacy underline');
     await seed('<span style="text-decoration:underline wavy 3px blue">蓝色波浪线</span>');await editor.press('ControlOrMeta+Shift+U');check((await states()).every(s=>!s.lines.length),'Shortcut did not remove a custom wave');
     await seed('<p style="text-decoration:underline wavy red">甲乙</p><p><s><span style="text-decoration:underline blue">丙丁</span></s></p>');
     await select(1,3);await clear('underline');
-    const blocks=await states();check(blocks[0].lines.length===1&&blocks[1].lines.length===0&&blocks[2].lines.length===0&&blocks[3].lines.length===1,'Clear across paragraphs changed the wrong text');
+    const blocks=await states();check(blocks[0].lines.length===1&&blocks[1].lines[0]==='wavy'&&blocks[2].lines.length===0&&blocks[3].lines.length===1,'Clear across paragraphs changed the wrong line type');
     check(await editor.locator('p').count()===2&&await editor.locator('s').count()===1,'Clear removed paragraph or strike formatting');
     for(const [key,style] of [['ControlOrMeta+U','solid'],['ControlOrMeta+Shift+U','wavy']]){
       await seed('<strong>标注测试</strong>');await editor.press(key);
@@ -43,9 +54,10 @@ async page => {
     }
     await seed('删除线检查');await editor.press('ControlOrMeta+Shift+X');check(await editor.evaluate(el=>Array.from(el.querySelectorAll('*')).some(n=>getComputedStyle(n).textDecorationLine.includes('line-through'))),'Strike shortcut did not apply');await editor.press('ControlOrMeta+Shift+X');check(!await editor.evaluate(el=>Array.from(el.querySelectorAll('*')).some(n=>getComputedStyle(n).textDecorationLine.includes('line-through'))),'Strike shortcut did not toggle off');
     await seed(nested);await clear('underline');await test.evaluate(()=>noteApp.save());await test.reload();await test.waitForFunction(()=>window.noteCloud);await test.evaluate(()=>noteCloud.ready);
-    check((await states()).every(s=>!s.lines.length&&s.bold),'Cleared annotations returned after reload');
+    check((await states()).every(s=>s.lines.length===1&&s.lines[0]==='wavy'&&s.bold),'Reload did not preserve the other line type');
+    await select(0,4);await clear('wave');check((await states()).every(s=>!s.lines.length&&s.bold),'Clearing the remaining wave failed');
     check(!errors.length,'Browser errors: '+errors.join('; '));
     await test.screenshot({path:'output/playwright/cleared-overlapping-lines.png'});
-    return {passed:true,partialClear:true,mixedClear:true,repeatedClear:true,legacyShortcuts:true,boldAndItalicToggle:true,reloadPreserved:true,errors};
+    return {passed:true,independentLineRemoval:true,independentShortcutToggle:true,bothNestingOrders:true,partialClear:true,mixedClear:true,repeatedClear:true,legacyShortcuts:true,boldAndItalicToggle:true,reloadPreserved:true,errors};
   } finally {await context.close();}
 }
