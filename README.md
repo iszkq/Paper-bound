@@ -38,14 +38,16 @@ python server.py --host 127.0.0.1 --port 4173
 
 ## 服务器部署
 
-**不需要容器。** 可以直接上传完整项目、运行 Python 服务，再从浏览器访问。1Panel、内网 HTTP + IP 和 FRP 公网入口的完整操作见 [非容器部署说明](deploy/README.md)。不需要安装 npm 依赖或打包前端；登录与云同步需要 Python 服务，纯静态网站无法提供这部分功能。
+**不需要容器。最简单只需：上传解压 → 运行安装命令 → 输入自己的端口 → 浏览器打开。**
 
 ```sh
-cd /你的上传目录
-NOTES_HOST=0.0.0.0 NOTES_PORT=8080 sh start.sh
+cd /你的解压目录
+sudo bash install.sh
 ```
 
-然后访问 `http://内网IP:8080`。使用 systemd 保持服务运行的方法见部署说明。内网 HTTP 与公网 HTTPS 同时使用时，原生配置保持 `NOTES_SECURE_COOKIES=0`，让两个入口都能登录。
+1Panel 的 root 终端直接执行 `bash install.sh`，无需 sudo。也可以 `sudo bash install.sh --port 9188` 一次指定你自己的空闲端口；不强制使用某个端口。脚本会检查占用、设置开机自启，在更新前备份数据库，并默认保留已有端口。安装后访问脚本显示的 `http://内网IP:你选的端口`，FRP 目标端口填写相同值。
+
+需要采用 systemd 的 Linux。运行环境是宿主机 Python 3.10+；没有容器、npm build 或 pip 依赖。1Panel、内网 HTTP + IP、FRP 和手动启动的完整说明见 [非容器部署说明](deploy/README.md)。账号和同步需要服务进程，仅上传 HTML 到静态网站目录无法提供这部分功能。内网 HTTP 与公网 HTTPS 同时使用时，原生配置保持 `NOTES_SECURE_COOKIES=0`，让两个入口都能登录。
 
 `/api/version` 可以核对实际版本、运行文件是否完整，以及更新后是否忘记重启。JS/CSS 地址带发行版号，应用页面和脚本要求缓存重新验证。
 
