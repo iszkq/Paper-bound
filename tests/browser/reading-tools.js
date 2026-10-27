@@ -58,12 +58,23 @@ async page => {
     check(await test.locator('#bibleSelectedCount').innerText()==='已选 0 节','Closing did not clear selected verses');
     await test.locator('#bibleClose').click();
     const editor=test.locator('.paragraph-text').first();
+    await editor.fill('红色粗实线下划线快捷键测试');
+    await editor.press('ControlOrMeta+A');
+    await editor.press('ControlOrMeta+U');
+    const underline=editor.locator('span[style*="text-decoration: underline"]').first();
+    check(await underline.count()>0,'Underline shortcut did not apply styled solid underline');
+    const underlineStyle=await underline.evaluate(el=>({line:el.style.textDecorationLine,style:getComputedStyle(el).textDecorationStyle,color:el.style.textDecorationColor,thickness:el.style.textDecorationThickness,offset:el.style.textUnderlineOffset}));
+    check(underlineStyle.line==='underline'&&underlineStyle.style==='solid'&&underlineStyle.color==='rgb(183, 53, 48)'&&underlineStyle.thickness==='2px'&&underlineStyle.offset==='4px','Underline shortcut styling differs from red toolbar preset: '+JSON.stringify(underlineStyle));
+    check(await test.evaluate(()=>getSelection().toString())==='红色粗实线下划线快捷键测试','Underline shortcut lost selected text');
     await editor.fill('波浪线快捷键测试');
     await editor.press('ControlOrMeta+A');
     await editor.press('ControlOrMeta+Shift+U');
     check(await editor.locator('span[style*="wavy"]').count()>0,'Wavy underline shortcut did not apply');
     check(await test.evaluate(()=>getSelection().toString())==='波浪线快捷键测试','Shortcut lost selected text');
     await test.locator('#shortcutsToggle').click();
+    await test.locator('#shortcutsSearch').fill('下划线');
+    check((await test.locator('.shortcut-row').innerText()).includes('红色粗实线下划线'),'Underline shortcut missing in help');
+    check((await test.locator('.shortcut-row .shortcut-keys').innerText()).includes('U'),'Wrong underline shortcut keys');
     await test.locator('#shortcutsSearch').fill('波浪线');
     check((await test.locator('.shortcut-row').innerText()).includes('红色波浪线'),'Wavy shortcut missing in help');
     check((await test.locator('.shortcut-row .shortcut-keys').innerText()).includes('Shift'),'Wrong wavy shortcut keys');
@@ -78,6 +89,6 @@ async page => {
     check(await test.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile horizontal overflow');
     await test.screenshot({path:'output/playwright/bible-mobile.png'});
     check(!errors.length,'Browser errors: '+errors.join('; '));
-    return {passed:true,testaments:{old:39,new:27},defaultsPreserved:true,previewMetadata:true,wavyShortcut:'Ctrl+Shift+U',errors};
+    return {passed:true,testaments:{old:39,new:27},defaultsPreserved:true,previewMetadata:true,underlineShortcut:'Ctrl+U red 2px solid',wavyShortcut:'Ctrl+Shift+U',errors};
   } finally { await context.close(); }
 }

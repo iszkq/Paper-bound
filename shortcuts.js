@@ -28,7 +28,7 @@
     {group:'常规',name:'查找页面文字',keys:[['Mod','F']]},
     {group:'文本格式',name:'加粗',keys:[['Mod','B']],codes:['KeyB'],editing:true,run:command('format','bold')},
     {group:'文本格式',name:'斜体',keys:[['Mod','I']],codes:['KeyI'],editing:true,run:command('format','italic')},
-    {group:'文本格式',name:'下划线',keys:[['Mod','U']],codes:['KeyU'],editing:true,run:command('format','underline')},
+    {group:'文本格式',name:'红色粗实线下划线',keys:[['Mod','U']],codes:['KeyU'],editing:true,run:command('underline')},
     {group:'文本格式',name:'红色波浪线',keys:[['Mod','Shift','U']],codes:['KeyU'],shift:true,editing:true,run:command('wave')},
     {group:'文本格式',name:'删除线',keys:[['Mod','Shift','X']],codes:['KeyX'],shift:true,editing:true,run:command('format','strikeThrough')},
     {group:'文本格式',name:'黄色高亮',keys:[['Mod','Shift','H']],codes:['KeyH'],shift:true,editing:true,run:()=>{editor.remember();editor.format('hiliteColor','#fef08a');}},

@@ -22,7 +22,7 @@ npx --yes --package @playwright/cli playwright-cli -s=deploy-check run-code --fi
 
 ## 经文分组与波浪线快捷键
 
-`reading-tools.js` 在 4173 端口服务上使用独立浏览器上下文，不读取或更改当前浏览器文档。检查新建文档默认信息、预览信息、自定义信息刷新保留、旧约／新约卷章筛选、跨约多选与搜索跳转、关闭清空、波浪线快捷键与帮助、移动端控件宽度。
+`reading-tools.js` 在 4173 端口服务上使用独立浏览器上下文，不读取或更改当前浏览器文档。检查新建文档默认信息、预览信息、自定义信息刷新保留、旧约／新约卷章筛选、跨约多选与搜索跳转、关闭清空、Ctrl+U 红色粗实线下划线、Ctrl+Shift+U 红色粗波浪线快捷键与帮助、移动端控件宽度。
 
 ```sh
 npx --yes --package @playwright/cli playwright-cli -s=reading-check open http://127.0.0.1:4173/index.html
