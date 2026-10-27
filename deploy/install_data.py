@@ -44,6 +44,11 @@ def check_access(path, username='paper-bound'):
     """Check effective DAC/ACL access as the service identity without changing parent permissions."""
     if os.name != 'posix':
         return
+    # systemd binds these protected-home paths into the service namespace; the host-side
+    # preflight cannot enter them, so the service's startup/HTTP health check verifies access.
+    path = str(path)
+    if path == '/root' or path.startswith('/root/') or path == '/home' or path.startswith('/home/'):
+        return
     import pwd
 
     account = pwd.getpwnam(username)
