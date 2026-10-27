@@ -169,6 +169,12 @@ jobs:
           with urllib.request.urlopen('http://127.0.0.1:907/api/setup') as response:
               assert json.load(response)['required'] is False
           PY
+      - name: Installation diagnostics on failure
+        if: failure()
+        run: |
+          sudo systemctl status paper-bound --no-pager || true
+          sudo systemctl cat paper-bound || true
+          sudo journalctl -u paper-bound -n 100 --no-pager || true
   native-custom-first:
     runs-on: ubuntu-latest
     steps:

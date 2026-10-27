@@ -137,7 +137,10 @@ for file in "$DATA/notes.sqlite3" "$DATA/notes.sqlite3-wal" "$DATA/notes.sqlite3
 done
 systemctl daemon-reload
 systemctl enable paper-bound
-systemctl start paper-bound
+if ! systemctl start paper-bound; then
+  journalctl -u paper-bound -n 40 --no-pager >&2 || true
+  exit 1
+fi
 "$PYTHON" - "$PORT" <<'PY'
 import json
 import sys
@@ -154,6 +157,8 @@ for _ in range(40):
         pass
     time.sleep(.25)
 else:
+    import subprocess
+    subprocess.run(['journalctl', '-u', 'paper-bound', '-n', '40', '--no-pager'], check=False)
     raise SystemExit('服务启动检查失败，请执行：sudo journalctl -u paper-bound -n 50 --no-pager')
 PY
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
