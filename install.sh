@@ -8,12 +8,14 @@ DATA=${NOTES_DATA_DIR:-}
 PORT=${NOTES_PORT:-}
 INSTALL_STATE=/etc/paper-bound-install-state
 CHECK=0
+RETRY_EMPTY=0
 while (($#)); do
   case "$1" in
     --check) CHECK=1; shift ;;
+    --retry-empty-first-install) RETRY_EMPTY=1; shift ;;
     --port) PORT=${2:?请在 --port 后填写端口}; shift 2 ;;
     --data-dir) DATA=${2:?请在 --data-dir 后填写数据文件夹的绝对路径}; shift 2 ;;
-    *) echo '用法：sudo bash install.sh [--port 8080] [--data-dir /你的数据文件夹]；仅检查：bash install.sh --check' >&2; exit 1 ;;
+    *) echo '用法：sudo bash install.sh [--port 8080] [--data-dir /你的数据文件夹] [--retry-empty-first-install]；仅检查：bash install.sh --check' >&2; exit 1 ;;
   esac
 done
 if [[ ! -f $SOURCE/release.json || ! -f $SOURCE/deploy/paper-bound.service || ! -f $SOURCE/deploy/install_data.py ]]; then
@@ -71,11 +73,14 @@ if [[ ! -f /etc/systemd/system/paper-bound.service && ! -f $OLD_DATA/notes.sqlit
 fi
 if [[ -f /etc/systemd/system/paper-bound.service && ! -f $OLD_DATA/notes.sqlite3 ]]; then
   STATE=$(cat "$INSTALL_STATE" 2>/dev/null || true)
-  if [[ $STATE == pending ]] || data_tool recoverable-first-start "$OLD_DATA"; then
+  if [[ $RETRY_EMPTY == 1 ]]; then
+    echo '已按 --retry-empty-first-install 请求继续；当前路径没有数据库，将初始化为空数据库。请先确认此路径下没有需要恢复的旧数据。'
+    OLD_DATA=$DATA
+  elif [[ $STATE == pending ]] || data_tool recoverable-first-start "$OLD_DATA"; then
     echo '检测到首次启动未完成，且数据库尚未创建；允许修正目录权限后重试，不会覆盖已有数据库。'
     OLD_DATA=$DATA
   else
-    echo "原配置的数据目录 $OLD_DATA 中没有数据库，请先检查磁盘挂载或还原备份，避免创建空数据库。" >&2; exit 1
+    echo "原配置的数据目录 $OLD_DATA 中没有数据库，请先检查磁盘挂载或还原备份，避免创建空数据库。若这是数据库尚未创建的首次安装，请确认没有旧数据后重试并加 --retry-empty-first-install。" >&2; exit 1
   fi
 fi
 data_tool preflight "$OLD_DATA" "$DATA"

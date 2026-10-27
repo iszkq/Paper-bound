@@ -50,6 +50,8 @@ sudo bash install.sh
 
 1Panel 的 root 终端直接执行 `bash install.sh`，无需 sudo。也可以 `sudo bash install.sh --port 9188 --data-dir /data/paper-bound` 一次指定空闲端口和专用数据文件夹，路径包含空格时加引号。安装脚本由 root 执行，网页服务以受限的 `paper-bound` 系统账号运行；安装器会预先检查该账号对所选目录及上级目录的访问权限，不会擅自放宽 NAS 其他目录权限。脚本也会检查端口、设置开机自启，并在更新前备份数据库。安装后访问脚本显示的 `http://内网IP:你选的端口`，FRP 目标端口填写相同值。
 
+若首次启动因 NAS 目录权限失败且尚无数据库，可先选一个服务账号可访问的持久化目录；确认目标下没有已有数据库后，使用 `--retry-empty-first-install` 允许空库初始化。安装器不会覆盖任何现存数据库。
+
 需要采用 systemd 的 Linux。运行环境是宿主机 Python 3.10+；没有容器、npm build 或 pip 依赖。1Panel、内网 HTTP + IP、FRP 和手动启动的完整说明见 [非容器部署说明](deploy/README.md)。账号和同步需要服务进程，仅上传 HTML 到静态网站目录无法提供这部分功能。内网 HTTP 与公网 HTTPS 同时使用时，原生配置保持 `NOTES_SECURE_COOKIES=0`，让两个入口都能登录。
 
 `/api/version` 可以核对实际版本、运行文件是否完整，以及更新后是否忘记重启。JS/CSS 地址带发行版号，应用页面和脚本要求缓存重新验证。

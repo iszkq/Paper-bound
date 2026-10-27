@@ -204,7 +204,7 @@ jobs:
           fi
           sudo test ! -f /etc/systemd/system/paper-bound.service
           sudo chmod 711 /var/lib/paper-bound-locked-parent
-          sudo bash install.sh --port 19182 --data-dir /var/lib/paper-bound-locked-parent/data
+          sudo bash install.sh --port 19182 --data-dir /var/lib/paper-bound-locked-parent/data --retry-empty-first-install
           sudo test -f /var/lib/paper-bound-locked-parent/data/notes.sqlite3
           python3 - <<'PY'
           import json, urllib.request
