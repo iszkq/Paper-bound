@@ -62,9 +62,33 @@
   function readLibrary(){const key='zhijian-library-v1:'+session,stored=readJson(key,null);const lib=normalizeTemplates(stored?.documents?.length?stored:blankLibrary());if(!lib.guideVersion){lib.documents.push(guideDocument());lib.guideVersion=1;}localStorage.setItem(key,JSON.stringify(lib));return lib;}
   let library=readLibrary(), activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;
   let data=normalize(activeDoc.data);
-  let active=null, range=null, layout='handout', timer, toastTimer;
+  let active=null, range=null, layout='handout', timer, saveLimit, toastTimer;
+  let savePending=false,lastSavedAt=0,saveError='',savedKey='',savedContent='';
   const fields={titleInput:'title',authorInput:'author',sourceInput:'source',dateInput:'date',dateHeadingInput:'dateHeading',topicInput:'topic',mastheadInput:'masthead'};
-  function save(now=false){clearTimeout(timer);const write=()=>{try{activeDoc.data=data;activeDoc.title=data.title||activeDoc.title||'未命名笔记';localStorage.setItem('zhijian-library-v1:'+session,JSON.stringify(library));if(session===GUEST)localStorage.setItem(KEY,JSON.stringify(data));$('#saveText').textContent='已保存到本机';renderLibrary();document.dispatchEvent(new CustomEvent('notesaved',{detail:{session}}));}catch{$('#saveText').textContent='保存失败';toast('本机存储空间不足，修改暂未保存');}};if(now)write();else{$('#saveText').textContent='正在保存…';timer=setTimeout(write,250);}}
+  function save(now=false){
+    clearTimeout(timer);
+    const write=()=>{
+      clearTimeout(timer);clearTimeout(saveLimit);saveLimit=null;
+      try{
+        activeDoc.data=data;activeDoc.title=data.title||activeDoc.title||'未命名笔记';
+        const key='zhijian-library-v1:'+session,value=JSON.stringify(library);
+        if(savedKey===key&&savedContent===value&&!saveError&&localStorage.getItem(key)===value){
+          const wasPending=savePending;savePending=false;
+          if(wasPending)document.dispatchEvent(new CustomEvent('notesaved',{detail:{session}}));return true;
+        }
+        localStorage.setItem(key,value);if(session===GUEST)localStorage.setItem(KEY,JSON.stringify(data));
+        savedKey=key;savedContent=value;lastSavedAt=Date.now();savePending=false;saveError='';
+        renderLibrary();document.dispatchEvent(new CustomEvent('notesaved',{detail:{session}}));return true;
+      }catch{
+        const message='本机存储空间不足，修改暂未保存。请立即下载备份。';
+        if(!saveError)toast(message);saveError=message;savePending=true;
+        document.dispatchEvent(new Event('notesaveerror'));return false;
+      }
+    };
+    if(now)return write();
+    savePending=true;document.dispatchEvent(new CustomEvent('notesavepending',{detail:{session}}));
+    timer=setTimeout(write,800);if(!saveLimit)saveLimit=setTimeout(write,5000);
+  }
   function toast(s){clearTimeout(toastTimer);$('#toast').textContent=s;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2200);}
   function renderLibrary(){document.dispatchEvent(new Event('libraryupdated'));}
   function newDocument(folderId='',templateId=library.defaultTemplateId,title=null){
@@ -91,7 +115,7 @@
   function openDocument(id){const doc=library.documents.find(x=>x.id===id);if(!doc)return;save(true);activeDoc=doc;library.activeId=id;data=normalize(doc.data);render();save(true);}
   function switchUser(id){save(true);session=id;localStorage.setItem(SESSION_KEY,id);library=readLibrary();activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;data=normalize(activeDoc.data);render();save(true);}
   function replaceLibrary(next){clearTimeout(timer);library=normalizeTemplates(noteRuntime.clone(next));library.documents=library.documents.map(d=>({...d,data:normalize(d.data)}));activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;data=normalize(activeDoc.data);render();save(true);}
-  window.noteApp={replaceLibrary,getState:()=>({session,library,activeDoc,data}),save:()=>save(true),newDocument,requestNewDocument:newDocument,saveTemplate,renameTemplate,deleteTemplate,setDefaultTemplate,openDocument,switchUser,toast,normalize,parseArticle,importArticle,updateLibrary:()=>save(true)};
+  window.noteApp={replaceLibrary,getState:()=>({session,library,activeDoc,data}),getSaveState:()=>({pending:savePending,lastSavedAt,error:saveError}),save:()=>save(true),newDocument,requestNewDocument:newDocument,saveTemplate,renameTemplate,deleteTemplate,setDefaultTemplate,openDocument,switchUser,toast,normalize,parseArticle,importArticle,updateLibrary:()=>save(true)};
   function drawBlocks(){for(const pos of ['top','bottom']){const group=data.blocks.map((b,i)=>({b,i})).filter(x=>x.b.position===pos);$('#'+pos+'BlockEditors').innerHTML=group.map((x,n)=>'<section class="block-editor" data-block-index="'+x.i+'"><div class="block-editor-head"><input class="block-title-input" data-block-field="title" value="'+esc(x.b.title)+'" aria-label="栏目名称" placeholder="栏目名称"><select class="block-position" data-block-field="position" aria-label="栏目位置"><option value="top" '+(pos==='top'?'selected':'')+'>文前</option><option value="bottom" '+(pos==='bottom'?'selected':'')+'>文后</option></select><button class="small-icon-btn" data-action="up" '+(!n?'disabled':'')+' aria-label="上移栏目">↑</button><button class="small-icon-btn" data-action="down" '+(n===group.length-1?'disabled':'')+' aria-label="下移栏目">↓</button><button class="small-icon-btn" data-action="block-delete" aria-label="删除栏目">×</button></div><div class="rich-editor block-content-input" contenteditable="true" data-block-field="html" data-placeholder="写下'+(pos==='bottom'?'总结、收获或延伸思考':'概要、背景或要点')+'…" role="textbox" aria-multiline="true" aria-label="'+esc(x.b.title)+' 内容">'+x.b.html+'</div></section>').join('');}}
   function paper(){applyDocumentFont();const blocks=pos=>data.blocks.filter(b=>b.position===pos).map(b=>'<section class="paper-custom-block '+(pos==='bottom'?'bottom-block':'')+'"><h2>'+esc(b.title)+'</h2><div>'+b.html+'</div></section>').join('');const rows=data.paragraphs.map(p=>'<section class="content-pair"><div class="content-pair-main"><div class="paper-paragraph">'+p.html+'</div></div><div class="content-pair-note"><div class="paper-note-copy">'+p.noteHtml+'</div></div></section>').join('');let head;if(layout==='table')head='<header class="paper-table-header"><h1 class="paper-table-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-table-meta"><span>作者：'+esc(data.author)+'</span><span>来源：'+esc(data.source)+'</span><span>'+esc(data.date)+'</span></div></header>';else head='<header class="paper-header"><div class="paper-date">'+esc(data.date||'日期未填写')+'<strong>'+esc(data.dateHeading)+'</strong>'+esc(data.topic)+'</div><div class="paper-title-wrap"><h1 class="paper-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-byline"><span>作者：'+esc(data.author||'未填写')+'</span><span>来源：'+esc(data.source||'未填写')+'</span></div></div><div class="paper-brand">'+esc(data.masthead)+'</div></header>';const bottom=blocks('bottom');$('#paper').classList.toggle('table-layout',layout==='table');$('#paper').innerHTML=head+blocks('top')+'<div class="paper-columns-head"><span>文段</span><span>分析</span></div><div class="paper-content-pairs">'+rows+'</div>'+(bottom?'<section class="paper-endnotes" aria-label="文末总结与补充">'+bottom+'</section>':'');}
   function render(){active=null;range=null;syncToolbar();$('#fontSizePicker').value='';Object.entries(fields).forEach(([id,key])=>$('#'+id).value=data[key]||'');$('#panelCount').textContent='共 '+data.paragraphs.length+' 段';$('#articleList').innerHTML=data.paragraphs.map((p,i)=>'<article class="edit-pair" data-index="'+i+'"><section class="edit-cell"><div class="paragraph-top"><span class="para-number">文段 '+String(i+1).padStart(2,'0')+'</span><div class="para-controls"><button class="small-icon-btn paragraph-drag" draggable="true" title="拖动文段和对应分析到指定位置" aria-label="拖动第 '+(i+1)+' 段"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg></button><button class="small-icon-btn" data-para-move="up" aria-label="上移第 '+(i+1)+' 段" '+(i===0?'disabled':'')+'>↑</button><button class="small-icon-btn" data-para-move="down" aria-label="下移第 '+(i+1)+' 段" '+(i===data.paragraphs.length-1?'disabled':'')+'>↓</button><button class="delete-para" data-action="delete" aria-label="删除第 '+(i+1)+' 段">×</button></div></div><div class="rich-editor paragraph-text" contenteditable="true" data-field="html" data-placeholder="写下这一段正文…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段正文">'+p.html+'</div></section><section class="edit-cell"><div class="paragraph-top"><span class="para-number">对应分析 '+String(i+1).padStart(2,'0')+'</span></div><div class="rich-editor annotation-text" contenteditable="true" data-field="noteHtml" data-placeholder="写下这一段的分析、思考或批注…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段分析">'+p.noteHtml+'</div></section></article>').join('');drawBlocks();paper();}
@@ -304,5 +328,6 @@
     data={...data,title:title.trim().slice(0,160)||data.title,paragraphs,blocks:[]};
     render();save(true);$('[data-view="edit"]').click();toast('已导入 '+paragraphs.length+' 个文段');return true;
   }
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);});
   window.addEventListener('pagehide',()=>save(true));render();
 })();

@@ -5,34 +5,69 @@
   const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f;}catch{return f;}};
   const account=window.cloudAccount={user:null};
   const mobileStatus=document.createElement('button');mobileStatus.id='mobileSyncStatus';mobileStatus.className='mobile-sync-state';document.body.append(mobileStatus);
-  let revision=0,dirty=false,conflict=false,busy=false,suspend=true,timer,editGeneration=0,lastContent='',lastError='',authExpired=false;
+  let revision=0,dirty=false,conflict=false,busy=false,suspend=true,timer,maxTimer,editGeneration=0,lastContent='',lastError='',authExpired=false,lastSyncedAt=0,metadataError=false,manualPending=false;
   const key=()=>account.user?'zhijian-sync-v1:'+account.user.id:'';
   const content=()=>JSON.stringify(app.getState().library);
-  const badge=(message,state='')=>{ $('#saveText').textContent=message;mobileStatus.textContent=message;mobileStatus.dataset.state=state;$('#syncStatusBtn').dataset.state=state;$('#syncStatusBtn').title=lastError||'点击立即同步；本机修改会自动保存'; };
-  function remember(){if(key())localStorage.setItem(key(),JSON.stringify({revision,dirty}));}
-  function status(){if(!account.user){badge('仅保存在本机');return;}if(authExpired)badge('登录已失效 · 点击登录','error');else if(conflict)badge('同步冲突 · 点击处理','conflict');else if(busy)badge('正在同步…','busy');else if(lastError)badge('本机已保存 · 同步待重试','error');else badge(dirty?'本机已保存 · 等待同步':'已同步到服务器',dirty?'pending':'synced');}
+  const badge=(message,state='',detail='')=>{
+    if($('#saveText').textContent!==message)$('#saveText').textContent=message;
+    if(mobileStatus.textContent!==message)mobileStatus.textContent=message;
+    mobileStatus.dataset.state=state;$('#syncStatusBtn').dataset.state=state;
+    $('#syncStatusBtn').title=detail||lastError||'保存文档（Ctrl+S）；本地草稿会自动保存';
+    mobileStatus.title=$('#syncStatusBtn').title;
+  };
+  $('#syncStatusBtn').setAttribute('aria-label','保存文档');mobileStatus.setAttribute('aria-label','保存文档');
+  function remember(){
+    if(!key())return true;
+    try{
+      localStorage.setItem(key(),JSON.stringify({revision,dirty,lastSyncedAt}));
+      if(metadataError&&lastError==='本机同步状态保存失败，请立即下载备份。')lastError='';metadataError=false;return true;
+    }catch{metadataError=true;lastError='本机同步状态保存失败，请立即下载备份。';return false;}
+  }
+  function status(){
+    const local=app.getSaveState(),time=value=>new Date(value).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    if(local.error){badge('保存失败','error',local.error);return;}
+    const localDetail=local.pending?'本地草稿待保存':local.lastSavedAt?'本地保存于 '+time(local.lastSavedAt):'本地草稿自动保存';
+    const cloudDetail=!account.user?'当前文档保存在此浏览器':busy?'正在后台同步':dirty?'待同步：停笔 10 秒或连续编辑 30 秒后自动同步':lastSyncedAt?'云端同步于 '+time(lastSyncedAt):'云端已同步';
+    const detail='点击保存（Ctrl+S） · '+localDetail+' · '+cloudDetail;
+    if(authExpired)badge('登录已失效','error','点击重新登录；本地草稿已保留');
+    else if(conflict)badge('同步冲突','conflict','点击处理同步冲突；本地草稿已保留');
+    else if(account.user&&lastError)badge('同步待重试','error',lastError+'；本地草稿已保留，点击重试');
+    else badge('保存',busy?'busy':dirty||local.pending?'pending':account.user?'synced':'',detail);
+  }
   async function api(path,options={}){const response=await fetch(path,{...options,headers:{'Content-Type':'application/json',...options.headers},signal:noteRuntime.timeout(12000)});let result;try{result=await response.json();}catch{throw Error('文档服务未连接，请稍后重试。');}if(!response.ok){if(path==='/api/library'&&response.status===401)authExpired=true;const err=Error(result.error||'同步失败，请稍后重试。');err.status=response.status;throw err;}if(path==='/api/library')authExpired=false;return result;}
   function apply(lib){suspend=true;try{app.replaceLibrary(lib);lastContent=content();}finally{suspend=false;}}
-  function queue(){clearTimeout(timer);timer=setTimeout(()=>push(),750);}
+  function clearQueue(){clearTimeout(timer);clearTimeout(maxTimer);timer=null;maxTimer=null;}
+  function queue(delay=10000){
+    if(suspend||!account.user||conflict||authExpired)return;
+    clearTimeout(timer);timer=setTimeout(()=>{timer=null;push();},delay);
+    if(!maxTimer)maxTimer=setTimeout(()=>{maxTimer=null;push();},30000);
+  }
+  document.addEventListener('notesavepending',()=>{if(!suspend){if(account.user&&app.getState().session==='cloud:'+account.user.id)queue();status();}});
+  document.addEventListener('notesaveerror',status);
   document.addEventListener('notesaved',()=>{
     if(suspend)return;
     if(!account.user||app.getState().session!=='cloud:'+account.user.id){status();return;}
-    const value=content();if(value!==lastContent){lastContent=value;dirty=true;editGeneration++;try{remember();}catch{lastError='本机存储空间不足，请立即下载备份。';}queue();}status();
+    const value=content();if(value!==lastContent){lastContent=value;dirty=true;editGeneration++;remember();queue();}status();
   });
   document.addEventListener('input',e=>{if(e.target.closest('.workspace'))editGeneration++;});
   async function push(){
-    clearTimeout(timer);if(!account.user||busy||conflict)return false;
-    app.save();if(!dirty){status();return true;}
+    if(!account.user||busy||conflict||authExpired)return false;
+    clearQueue();const localSaved=app.save();clearQueue();
+    if(!localSaved){status();return false;}if(!dirty){remember();status();return true;}
     busy=true;lastError='';status();const payload=content();
-    try{const result=await api('/api/library',{method:'PUT',body:JSON.stringify({revision,library:JSON.parse(payload)})});revision=result.revision;dirty=payload!==content();remember();if(dirty)queue();return true;
-    }catch(err){lastError=err.message;if(err.status===409)conflict=true;dirty=true;remember();return false;}finally{busy=false;status();}
+    try{const result=await api('/api/library',{method:'PUT',body:JSON.stringify({revision,library:JSON.parse(payload)})});revision=result.revision;dirty=payload!==content();lastSyncedAt=Date.now();remember();return true;
+    }catch(err){lastError=err.message;if(err.status===409)conflict=true;dirty=true;remember();return false;}
+    finally{busy=false;status();if(dirty)queue(manualPending?0:lastError?30000:10000);else clearQueue();manualPending=false;}
   }
   async function pull(){
-    if(!account.user||busy||conflict)return;if(dirty)return push();
+    if(!account.user||busy||conflict||authExpired)return;
+    // Flush a pending browser draft before accepting a newer remote document.
+    // Polling must not bypass the batching delay and upload every small edit.
+    if(!app.save()||dirty)return;
     // Avoid replacing DOM while the user is editing or has an open account dialog.
     if(document.activeElement?.closest('.workspace')||document.querySelector('dialog[open]'))return;
     busy=true;const generation=editGeneration;status();
-    try{const result=await api('/api/library');lastError='';if(generation===editGeneration&&!dirty&&result.library&&result.revision!==revision){apply(result.library);revision=result.revision;remember();}}catch(err){lastError=err.message;}finally{busy=false;status();if(dirty)queue();}
+    try{const result=await api('/api/library');lastError='';if(generation===editGeneration&&!dirty&&result.library&&result.revision!==revision){apply(result.library);revision=result.revision;lastSyncedAt=Date.now();remember();}}catch(err){lastError=err.message;}finally{busy=false;status();if(dirty)queue(manualPending?0:10000);manualPending=false;}
   }
   function dialog(id,title,html){let d=$('#'+id);d?.remove();d=document.createElement('dialog');d.id=id;d.className='app-dialog';d.innerHTML='<form method="dialog" class="dialog-close-row"><button class="small-icon-btn" aria-label="关闭">×</button></form><h2>'+esc(title)+'</h2>'+html;document.body.append(d);d.showModal();return d;}
   function mergeLibraries(remote,local){
@@ -51,7 +86,15 @@
     const resolve=async merge=>{if(busy)return;busy=true;try{app.save();const local=noteRuntime.clone(app.getState().library);const remote=await api('/api/library');if(!remote.library)throw Error('服务器尚无文档，请稍后重试。');if(!merge&&!confirm('使用服务器版本？当前本机版本将先下载为备份。'))return;if(!merge)backup(local,'同步前本机备份');apply(merge?mergeLibraries(remote.library,local):remote.library);revision=remote.revision;conflict=false;dirty=merge;lastError='';remember();d.close();}catch(err){$('#conflictError').textContent=err.message;}finally{busy=false;status();if(dirty&&!conflict)queue();}};
     $('#mergeConflict').onclick=()=>resolve(true);$('#remoteConflict').onclick=()=>resolve(false);
   }
-  $('#syncStatusBtn').onclick=()=>{if(authExpired){app.save();location.href='login.html';}else if(conflict)resolveConflict();else if(account.user){lastError='';dirty?push():pull();}else app.toast('登录后可按账号保存并同步文档');};
+  async function saveNow(){
+    if(!app.save()){status();app.toast(app.getSaveState().error);return false;}
+    if(authExpired){location.href='login.html';return false;}
+    if(conflict){resolveConflict();return false;}
+    if(!account.user){status();app.toast('已保存到本机');return true;}
+    if(busy){manualPending=true;app.toast('已保存到本机，正在后台同步');return false;}
+    const ok=await push();app.toast(ok?'已保存并同步':'已保存到本机，云端同步待重试');return ok;
+  }
+  $('#syncStatusBtn').onclick=saveNow;
   mobileStatus.onclick=()=>$('#syncStatusBtn').click();
   function backup(library,name){const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,library},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);}
   function importLibrary(source){
@@ -88,13 +131,13 @@
       if(result.setupRequired){location.href='login.html';return;}
       if(!result.user){if(app.getState().session.startsWith('cloud:'))app.switchUser('guest');localStorage.removeItem('zhijian-cloud-user');suspend=false;status();return;}
       account.user=result.user;localStorage.setItem('zhijian-cloud-user',JSON.stringify(result.user));app.switchUser('cloud:'+result.user.id);
-      const meta=read(key(),{revision:0,dirty:false});revision=meta.revision;dirty=meta.dirty;
+      const meta=read(key(),{revision:0,dirty:false});revision=meta.revision;dirty=meta.dirty;lastSyncedAt=meta.lastSyncedAt||0;
       const remote=await api('/api/library');if(dirty){lastContent=content();}else if(remote.library){apply(remote.library);revision=remote.revision;}else{revision=0;dirty=true;}
       lastContent=content();remember();suspend=false;document.dispatchEvent(new Event('libraryupdated'));status();if(dirty)await push();
-    }catch(err){if(cached&&app.getState().session==='cloud:'+cached.id){account.user=cached;const meta=read(key(),{revision:0,dirty:true});revision=meta.revision;dirty=meta.dirty;lastContent=content();}lastError=err.message;suspend=false;document.dispatchEvent(new Event('libraryupdated'));status();}finally{$('#app').inert=false;}
+    }catch(err){if(cached&&app.getState().session==='cloud:'+cached.id){account.user=cached;const meta=read(key(),{revision:0,dirty:true});revision=meta.revision;dirty=meta.dirty;lastSyncedAt=meta.lastSyncedAt||0;lastContent=content();}lastError=err.message;suspend=false;document.dispatchEvent(new Event('libraryupdated'));status();}finally{$('#app').inert=false;}
   }
-  window.noteCloud={sync:push,refresh:pull,ready:start(),getState:()=>({user:account.user,revision,dirty,conflict,busy,error:lastError})};
-  setInterval(()=>{if(navigator.onLine)pull();},15000);
+  window.noteCloud={sync:push,save:saveNow,refresh:pull,ready:start(),getState:()=>({user:account.user,revision,dirty,conflict,busy,error:lastError,lastSyncedAt})};
+  setInterval(()=>{if(navigator.onLine&&!document.hidden)pull();},30000);
   window.addEventListener('online',()=>dirty?push():pull());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)pull();});
   window.addEventListener('pagehide',()=>{if(account.user){app.save();remember();}});
