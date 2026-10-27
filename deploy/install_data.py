@@ -40,6 +40,65 @@ def previous(service=Path('/etc/systemd/system/paper-bound.service')):
     return values.get('NOTES_PORT', '8080'), values.get('NOTES_DATA_DIR', DEFAULT_DATA)
 
 
+def check_access(path, username='paper-bound'):
+    """Check effective DAC/ACL access as the service identity without changing parent permissions."""
+    if os.name != 'posix':
+        return
+    import pwd
+
+    account = pwd.getpwnam(username)
+    read_fd, write_fd = os.pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(read_fd)
+        try:
+            os.setgroups(os.getgrouplist(account.pw_name, account.pw_gid))
+            os.setgid(account.pw_gid)
+            os.setuid(account.pw_uid)
+            import tempfile
+            with tempfile.TemporaryFile(dir=path):
+                pass
+        except BaseException as error:
+            os.write(write_fd, str(error).encode('utf-8', errors='replace'))
+            os._exit(1)
+        os._exit(0)
+    os.close(write_fd)
+    with os.fdopen(read_fd, 'rb') as result:
+        detail = result.read().decode('utf-8', errors='replace')
+    _, status = os.waitpid(child, 0)
+    if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+        raise ValueError(
+            '服务账号 ' + username + ' 无法访问数据文件夹：' + str(path)
+            + (('（' + detail + '）') if detail else '')
+            + '。请在 NAS 共享文件夹权限中为该系统账号授予此目录读写权限及所有上级目录的访问/穿越权限，'
+              '或选择服务账号可访问的持久化目录。安装器不会擅自放宽其他目录权限。'
+        )
+
+
+def recoverable_first_start(data):
+    """Recognize an uninitialized install whose first launch failed at this data path."""
+    if os.name != 'posix':
+        return False
+    try:
+        state = subprocess.run(
+            ['systemctl', 'show', 'paper-bound', '--property=ActiveState', '--value'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if state.returncode != 0 or state.stdout.strip() != 'failed':
+            return False
+        logs = subprocess.run(
+            ['journalctl', '-u', 'paper-bound', '-n', '200', '--no-pager'],
+            capture_output=True, text=True, timeout=10,
+        )
+        return (
+            logs.returncode == 0
+            and 'PermissionError: [Errno 13] Permission denied:' in logs.stdout
+            and str(data) in logs.stdout
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def validate(value, *, inspect=True):
     value = value.strip()
     if not value.startswith('/') or any(ord(c) < 32 for c in value) or any(c in value for c in '\\"%:'):
@@ -150,7 +209,7 @@ def configure_unit(unit, data):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['previous', 'validate', 'preflight', 'prepare'])
+    parser.add_argument('action', choices=['previous', 'validate', 'preflight', 'prepare', 'check-access', 'recoverable-first-start'])
     parser.add_argument('paths', nargs='*')
     args = parser.parse_args()
     try:
@@ -160,6 +219,11 @@ if __name__ == '__main__':
             print(validate(args.paths[0]))
         elif args.action == 'preflight':
             preflight(*args.paths)
+        elif args.action == 'check-access':
+            check_access(args.paths[0])
+        elif args.action == 'recoverable-first-start':
+            if not recoverable_first_start(args.paths[0]):
+                raise SystemExit(1)
         else:
             prepare(*(Path(value) for value in args.paths))
     except (ValueError, OSError, sqlite3.Error) as error:

@@ -68,6 +68,20 @@ class InstallDataTests(unittest.TestCase):
             command.return_value.stdout = '0\n'
             self.assertEqual(install_data.previous(), ('8080', '/var/lib/paper-bound'))
 
+    @unittest.skipUnless(os.name == 'posix', 'Inspect systemd failure journal')
+    def test_first_start_failure_is_recoverable_only_for_matching_data_path(self):
+        with patch.object(install_data.subprocess, 'run') as command:
+            command.side_effect = [
+                type('Result', (), {'returncode': 0, 'stdout': 'failed'})(),
+                type('Result', (), {'returncode': 0, 'stdout': "PermissionError: [Errno 13] Permission denied: '/volume1/paper-bound'"})(),
+            ]
+            self.assertTrue(install_data.recoverable_first_start('/volume1/paper-bound'))
+            command.side_effect = [
+                type('Result', (), {'returncode': 0, 'stdout': 'failed'})(),
+                type('Result', (), {'returncode': 0, 'stdout': "PermissionError: [Errno 13] Permission denied: '/volume1/paper-bound'"})(),
+            ]
+            self.assertFalse(install_data.recoverable_first_start('/volume1/other'))
+
     @unittest.skipUnless(os.name == 'posix', 'Inspect Linux filesystem paths')
     def test_reserved_data_entries_have_expected_types(self):
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as temporary:

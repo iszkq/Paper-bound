@@ -191,3 +191,23 @@ jobs:
           with urllib.request.urlopen('http://127.0.0.1:19181/api/setup') as response:
               assert json.load(response)['required'] is True
           PY
+  native-permission-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect inaccessible parent without installing a broken service, then retry safely
+        run: |
+          sudo install -d -o root -g root -m 700 /var/lib/paper-bound-locked-parent
+          if sudo bash install.sh --port 19182 --data-dir /var/lib/paper-bound-locked-parent/data; then
+            echo 'Installer did not detect the inaccessible parent directory'
+            exit 1
+          fi
+          sudo test ! -f /etc/systemd/system/paper-bound.service
+          sudo chmod 711 /var/lib/paper-bound-locked-parent
+          sudo bash install.sh --port 19182 --data-dir /var/lib/paper-bound-locked-parent/data
+          sudo test -f /var/lib/paper-bound-locked-parent/data/notes.sqlite3
+          python3 - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen('http://127.0.0.1:19182/api/setup') as response:
+              assert json.load(response)['required'] is True
+          PY

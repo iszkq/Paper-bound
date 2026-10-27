@@ -6,6 +6,7 @@ SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 APP=/opt/paper-bound
 DATA=${NOTES_DATA_DIR:-}
 PORT=${NOTES_PORT:-}
+INSTALL_STATE=/etc/paper-bound-install-state
 CHECK=0
 while (($#)); do
   case "$1" in
@@ -69,7 +70,13 @@ if [[ ! -f /etc/systemd/system/paper-bound.service && ! -f $OLD_DATA/notes.sqlit
   echo '检测到项目内有旧数据库。请先停止原来的手动服务，并按 deploy/README.md 迁移数据，不会丢弃原数据创建空库。' >&2; exit 1
 fi
 if [[ -f /etc/systemd/system/paper-bound.service && ! -f $OLD_DATA/notes.sqlite3 ]]; then
-  echo "原配置的数据目录 $OLD_DATA 中没有数据库，请先检查磁盘挂载或还原备份，避免创建空数据库。" >&2; exit 1
+  STATE=$(cat "$INSTALL_STATE" 2>/dev/null || true)
+  if [[ $STATE == pending ]] || data_tool recoverable-first-start "$OLD_DATA"; then
+    echo '检测到首次启动未完成，且数据库尚未创建；允许修正目录权限后重试，不会覆盖已有数据库。'
+    OLD_DATA=$DATA
+  else
+    echo "原配置的数据目录 $OLD_DATA 中没有数据库，请先检查磁盘挂载或还原备份，避免创建空数据库。" >&2; exit 1
+  fi
 fi
 data_tool preflight "$OLD_DATA" "$DATA"
 (cd "$SOURCE"; "$PYTHON" - <<'PY'
@@ -92,6 +99,12 @@ fi
 for command in systemctl useradd install flock; do
   command -v "$command" >/dev/null 2>&1 || { echo "系统缺少 $command" >&2; exit 1; }
 done
+if [[ ! -f /etc/systemd/system/paper-bound.service && ! -f $INSTALL_STATE ]]; then
+  state_tmp=$INSTALL_STATE.$$
+  printf 'pending\n' > "$state_tmp"
+  chmod 600 "$state_tmp"
+  mv -f "$state_tmp" "$INSTALL_STATE"
+fi
 if command -v ss >/dev/null 2>&1; then
   LISTENERS=$(ss -H -ltnp "sport = :$PORT")
   MAIN_PID=$(systemctl show paper-bound -p MainPID --value 2>/dev/null || true)
@@ -101,6 +114,7 @@ if command -v ss >/dev/null 2>&1; then
 fi
 id paper-bound >/dev/null 2>&1 || useradd --system --user-group --home-dir "$DATA" --no-create-home paper-bound
 install -d -o paper-bound -g paper-bound -m 700 "$DATA"
+data_tool check-access "$DATA"
 install -d -m 755 "$APP"
 if [[ -f /etc/systemd/system/paper-bound.service ]]; then
   systemctl stop paper-bound
@@ -163,6 +177,10 @@ else:
     subprocess.run(['journalctl', '-u', 'paper-bound', '-n', '40', '--no-pager'], check=False)
     raise SystemExit('服务启动检查失败，请执行：sudo journalctl -u paper-bound -n 50 --no-pager')
 PY
+state_tmp=$INSTALL_STATE.$$
+printf 'ready\n' > "$state_tmp"
+chmod 600 "$state_tmp"
+mv -f "$state_tmp" "$INSTALL_STATE"
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo "安装完成，请打开：http://${IP:-内网IP}:$PORT"
 echo '首次使用请创建管理员。关掉终端后会继续运行，服务器重启后自动启动。'
