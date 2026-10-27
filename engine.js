@@ -22,11 +22,12 @@
       if(n.nodeType===Node.TEXT_NODE)return esc(n.nodeValue);
       if(n.nodeType!==Node.ELEMENT_NODE||['SCRIPT','STYLE','IFRAME','OBJECT'].includes(n.tagName))return '';
       const tag=n.tagName, kids=Array.from(n.childNodes).map(walk).join(''); if(tag==='BR')return '<br>'; if(!tags.has(tag))return kids;
+      if(tag==='DIV'&&n.hasAttribute('data-format-operation'))return kids;
       const styles=[], st=n.style;
       for(const prop of ['color','background-color','text-decoration-color']){const v=st.getPropertyValue(prop);if(color.test(v||''))styles.push(prop+':'+v);}
       for(const prop of ['font-size','text-decoration-thickness','text-underline-offset']){const v=st.getPropertyValue(prop);if(length.test(v))styles.push(prop+':'+v);}
       const family=st.fontFamily.replace(/["']/g,'').trim();if(/^(inherit|FangSongGB2312|KaiTiGB2312|XiaozhangReading|XiaozhangReadingLight|XiaozhangReadingBold|HanChanFangKai)$/.test(family))styles.push('font-family:'+family);
-      const dec=st.textDecorationLine||st.textDecoration; if(/^(none|underline|line-through|overline)$/.test(dec))styles.push('text-decoration-line:'+dec);
+      const dec=st.textDecorationLine||st.textDecoration; if(/^(none|(?:underline|line-through|overline)(?:\s+(?:underline|line-through|overline)){0,2})$/.test(dec))styles.push('text-decoration-line:'+dec);
       if(/^(solid|double|dotted|dashed|wavy)$/.test(st.textDecorationStyle))styles.push('text-decoration-style:'+st.textDecorationStyle);
       if(/^(bold|bolder|[1-9]00)$/.test(st.fontWeight))styles.push('font-weight:'+st.fontWeight);
       if(/^(italic|normal)$/.test(st.fontStyle))styles.push('font-style:'+st.fontStyle);
@@ -152,19 +153,62 @@
     }
     if(first&&last){const selected=document.createRange();selected.setStart(...first);selected.setEnd(...last);const selection=getSelection();selection.removeAllRanges();selection.addRange(selected);}
   }
+  function selectionOffsets(editor,r){const prefix=r.cloneRange();prefix.selectNodeContents(editor);prefix.setEnd(r.startContainer,r.startOffset);return {start:prefix.toString().length,length:r.toString().length};}
+  function normalizeColor(color){const probe=document.createElement('span');probe.style.color=color;document.body.append(probe);const value=getComputedStyle(probe).color;probe.remove();return value;}
+  function selectionTextSegments(editor,r){const segments=[],walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;if(node.length&&r.intersectsNode(node)){const start=node===r.startContainer?r.startOffset:0,end=node===r.endContainer?r.endOffset:node.length;if(start<end)segments.push({node,start,end});}}return segments;}
+  function selectionHasFormat(matches){if(!restore())return null;const r=getSelection().getRangeAt(0);if(r.collapsed){toast('请先选中要标注的文字');return null;}const segments=selectionTextSegments(active,r);return !!segments.length&&segments.every(({node})=>{for(let el=node.parentElement;el&&active.contains(el);el=el.parentElement)if(matches(el))return true;return false;});}
   function style(css,attributes={}){
     if(!restore())return;
     const sel=getSelection(),r=sel.getRangeAt(0);if(r.collapsed){toast('请先选中要标注的文字');return;}
-    const prefix=r.cloneRange();prefix.selectNodeContents(active);prefix.setEnd(r.startContainer,r.startOffset);
-    const start=prefix.toString().length,length=r.toString().length;
-    const frag=r.cloneContents(),w=document.createTreeWalker(frag,NodeFilter.SHOW_TEXT),nodes=[];while(w.nextNode())nodes.push(w.currentNode);
-    nodes.forEach(n=>{if(n.textContent){const span=document.createElement('span');Object.assign(span.style,css);Object.entries(attributes).forEach(([k,v])=>span.setAttribute(k,v));n.replaceWith(span);span.append(n);}});
-    const box=document.createElement('div');box.append(frag);document.execCommand('insertHTML',false,box.innerHTML);
+    const {start,length}=selectionOffsets(active,r);
+    const frag=r.cloneContents(),walker=document.createTreeWalker(frag,NodeFilter.SHOW_TEXT),clones=[];while(walker.nextNode())clones.push(walker.currentNode);
+    const blockTags=new Set(['ADDRESS','ARTICLE','ASIDE','BLOCKQUOTE','DIV','DL','FIELDSET','FIGCAPTION','FIGURE','FOOTER','FORM','H1','H2','H3','H4','H5','H6','HEADER','LI','MAIN','NAV','OL','P','PRE','SECTION','TABLE','UL']);
+    clones.forEach(node=>{const span=document.createElement('span');Object.assign(span.style,css);Object.entries(attributes).forEach(([k,v])=>span.setAttribute(k,v));node.replaceWith(span);span.append(node);});
+    // cloneContents omits the common ancestor; retain its inline formatting too.
+    let content=frag,parent=r.commonAncestorContainer.nodeType===Node.ELEMENT_NODE?r.commonAncestorContainer:r.commonAncestorContainer.parentElement;
+    for(;parent&&parent!==active&&!blockTags.has(parent.tagName);parent=parent.parentElement){const copy=parent.cloneNode(false);copy.append(content);content=copy;}
+    const box=document.createElement('div');box.append(content);document.execCommand('insertHTML',false,box.innerHTML);
     if(length)selectTextOffsets(active,start,length);
     commit();
   }
-  function decorateLine(color='#b73530',lineStyle='solid'){
-    style({textDecorationLine:'underline',textDecorationStyle:lineStyle,textDecorationColor:color,textDecorationThickness:'2px',textUnderlineOffset:'4px'});
+  function decorateLine(color='#b73530',lineStyle='solid',toggle=false){
+    const matches=el=>{const css=getComputedStyle(el);return css.textDecorationLine.split(/\s+/).includes('underline')&&css.textDecorationStyle===lineStyle;};
+    const toggleOff=selectionHasFormat(matches);if(toggleOff===null)return;
+    if(toggle&&toggleOff){clearLineMarks();return true;}
+    style({textDecorationLine:'underline',textDecorationStyle:lineStyle,textDecorationColor:color,textDecorationThickness:'2px',textUnderlineOffset:'4px'});return false;
+  }
+  function toggleHighlight(color='#fef08a'){
+    const target=normalizeColor(color),matches=el=>getComputedStyle(el).backgroundColor===target;
+    const toggleOff=selectionHasFormat(matches);if(toggleOff===null)return;format('hiliteColor',toggleOff?'transparent':color);
+  }
+  function clearLineMarks(){
+    if(!restore())return;const r=getSelection().getRangeAt(0);if(r.collapsed){toast('请先选中要清除标注的文字');return;}
+    const {start,length}=selectionOffsets(active,r),affected=new Map();
+    for(const {node} of selectionTextSegments(active,r))for(let el=node.parentElement;el&&el!==active;el=el.parentElement){
+      const css=getComputedStyle(el);if(css.textDecorationLine.split(/\s+/).includes('underline'))affected.set(el,{textDecorationLine:css.textDecorationLine,textDecorationStyle:css.textDecorationStyle,textDecorationColor:css.textDecorationColor,textDecorationThickness:css.textDecorationThickness,textUnderlineOffset:css.textUnderlineOffset});
+    }
+    if(!affected.size)return;
+    // Split annotations at selection boundaries. A child with decoration:none
+    // cannot cancel a line painted by an ancestor; clear those ancestors first.
+    const clone=active.cloneNode(true),originals=Array.from(active.querySelectorAll('*')),copies=Array.from(clone.querySelectorAll('*'));
+    originals.forEach((el,index)=>{if(!affected.has(el))return;const copy=copies[index],css=affected.get(el),remaining=css.textDecorationLine.split(/\s+/).filter(line=>line!=='underline');copy.style.removeProperty('text-decoration');Object.assign(copy.style,css,{textDecorationLine:remaining.join(' ')||'none'});});
+    const originalWalker=document.createTreeWalker(active,NodeFilter.SHOW_TEXT),cloneWalker=document.createTreeWalker(clone,NodeFilter.SHOW_TEXT),pairs=[];
+    while(originalWalker.nextNode()&&cloneWalker.nextNode())pairs.push([originalWalker.currentNode,cloneWalker.currentNode]);
+    let offset=0;
+    for(const [node,copy] of pairs){
+      const annotations=[];for(let el=node.parentElement;el&&el!==active;el=el.parentElement)if(affected.has(el))annotations.push(affected.get(el));
+      const size=node.length,from=Math.max(0,Math.min(size,start-offset)),to=Math.max(from,Math.min(size,start+length-offset));offset+=size;if(!annotations.length||!size)continue;
+      const fragment=document.createDocumentFragment();
+      for(const [a,b,selected] of [[0,from,false],[from,to,true],[to,size,false]]){if(a===b)continue;let content=document.createTextNode(node.data.slice(a,b));if(!selected)for(const css of annotations){const span=document.createElement('span');Object.assign(span.style,css,{textDecorationLine:'underline'});span.append(content);content=span;}fragment.append(content);}
+      copy.replaceWith(fragment);
+    }
+    clone.querySelectorAll('[data-format-operation]').forEach(el=>el.replaceWith(...el.childNodes));
+    const selection=getSelection(),whole=document.createRange();whole.selectNodeContents(active);selection.removeAllRanges();selection.addRange(whole);
+    // Chromium normalizes nested decorations during insertHTML. Insert an undoable
+    // container first, then populate it to preserve untouched annotations exactly.
+    document.execCommand('insertHTML',false,'<div data-format-operation="true">&#8203;</div>');
+    const operation=active.querySelector('[data-format-operation]');if(operation)operation.replaceChildren(...clone.childNodes);
+    selectTextOffsets(active,start,length);commit();
   }
   function adjustFontSize(direction){
     if(!restore())return;
@@ -211,9 +255,9 @@
   document.addEventListener('input',e=>{const t=e.target;let changed=false;if(fields[t.id]){data[fields[t.id]]=t.value;changed=true;}if(t.matches('[data-field]')){data.paragraphs[+t.closest('[data-index]').dataset.index][t.dataset.field]=clean(t.innerHTML);changed=true;}const wrap=t.closest('[data-block-index]');if(wrap&&t.dataset.blockField&&t.dataset.blockField!=='position'){data.blocks[+wrap.dataset.blockIndex][t.dataset.blockField]=t.isContentEditable?clean(t.innerHTML):t.value;changed=true;}if(changed){paper();save();}});
   document.addEventListener('focusin',e=>{if(e.target.matches('.rich-editor')){active=e.target;remember();}});document.addEventListener('selectionchange',remember);document.addEventListener('pointerdown',preserveBeforeToolbarAction,true);document.addEventListener('mousedown',preserveBeforeToolbarAction,true);
   document.addEventListener('change',e=>{if(e.target.matches('[data-block-field="position"]')){data.blocks[+e.target.closest('[data-block-index]').dataset.blockIndex].position=e.target.value;render();save();}if(e.target.id==='fontSizePicker'){if(e.target.value)style({fontSize:e.target.value+'px'});else style({}, {'data-default-size':'true'});}if(e.target.id==='fontFamilyPicker'){data.fontFamily=fontFamilies.has(e.target.value)?e.target.value:'';applyDocumentFont();save();}if(e.target.id==='textTypePicker')textType(e.target.value);});
-  document.addEventListener('click',e=>{const t=e.target,menuSummary=t.closest('.tool-menu > summary');if(menuSummary)closeMenus(menuSummary.parentElement);const fmt=t.closest('[data-format]'),kind=t.closest('[data-kind]'),apply=t.closest('[data-apply]'),clear=t.closest('[data-clear]'),list=t.closest('[data-list]'),add=t.closest('[data-add-block]'),action=t.closest('[data-action]');if(fmt)format(fmt.dataset.format);if(kind){const k=kind.dataset.kind,c=kind.dataset.color;if(k==='text')format('foreColor',c);else if(k==='highlight')format('hiliteColor',c);else decorateLine(c,k==='wave'?'wavy':'solid');closeMenus();}if(apply){const input=$('input[type=color]',apply.parentElement);const k=apply.dataset.apply;if(k==='text')format('foreColor',input.value);else if(k==='highlight')format('hiliteColor',input.value);else decorateLine(input.value,k==='wave'?'wavy':'solid');closeMenus();}if(clear){const k=clear.dataset.clear;if(k==='text')format('foreColor','#30383e');else if(k==='highlight')format('hiliteColor','transparent');else style({textDecorationLine:'none'});closeMenus();}if(list){insertList(list.dataset.list);closeMenus();}if(add)addBlock(add.dataset.addBlock);if(action){const k=action.dataset.action;if(k==='delete'){const i=+action.closest('[data-index]').dataset.index;if(data.paragraphs.length===1){toast('至少保留一个文段');return;}if(!confirm('删除文段和对应分析？'))return;data.paragraphs.splice(i,1);}else{const bi=+action.closest('[data-block-index]').dataset.blockIndex;if(k==='block-delete'){if(!confirm('删除这个栏目？'))return;data.blocks.splice(bi,1);}else{const group=data.blocks.map((b,n)=>b.position===data.blocks[bi].position?n:-1).filter(n=>n>=0),at=group.indexOf(bi),to=group[at+(k==='up'?-1:1)];if(to===undefined)return;[data.blocks[bi],data.blocks[to]]=[data.blocks[to],data.blocks[bi]];}}render();save();}const view=t.closest('[data-view]');if(view){document.body.classList.toggle('preview-mode',view.dataset.view==='preview');document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b===view));closeMenus();}const mode=t.closest('[data-layout]');if(mode){layout=mode.dataset.layout;document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active',b===mode));paper();}if(!t.closest('.tool-menu'))closeMenus();});
+  document.addEventListener('click',e=>{const t=e.target,menuSummary=t.closest('.tool-menu > summary');if(menuSummary)closeMenus(menuSummary.parentElement);const fmt=t.closest('[data-format]'),kind=t.closest('[data-kind]'),apply=t.closest('[data-apply]'),clear=t.closest('[data-clear]'),list=t.closest('[data-list]'),add=t.closest('[data-add-block]'),action=t.closest('[data-action]');if(fmt)format(fmt.dataset.format);if(kind){const k=kind.dataset.kind,c=kind.dataset.color;if(k==='text')format('foreColor',c);else if(k==='highlight')format('hiliteColor',c);else decorateLine(c,k==='wave'?'wavy':'solid');closeMenus();}if(apply){const input=$('input[type=color]',apply.parentElement);const k=apply.dataset.apply;if(k==='text')format('foreColor',input.value);else if(k==='highlight')format('hiliteColor',input.value);else decorateLine(input.value,k==='wave'?'wavy':'solid');closeMenus();}if(clear){const k=clear.dataset.clear;if(k==='text')format('foreColor','#30383e');else if(k==='highlight')format('hiliteColor','transparent');else clearLineMarks();closeMenus();}if(list){insertList(list.dataset.list);closeMenus();}if(add)addBlock(add.dataset.addBlock);if(action){const k=action.dataset.action;if(k==='delete'){const i=+action.closest('[data-index]').dataset.index;if(data.paragraphs.length===1){toast('至少保留一个文段');return;}if(!confirm('删除文段和对应分析？'))return;data.paragraphs.splice(i,1);}else{const bi=+action.closest('[data-block-index]').dataset.blockIndex;if(k==='block-delete'){if(!confirm('删除这个栏目？'))return;data.blocks.splice(bi,1);}else{const group=data.blocks.map((b,n)=>b.position===data.blocks[bi].position?n:-1).filter(n=>n>=0),at=group.indexOf(bi),to=group[at+(k==='up'?-1:1)];if(to===undefined)return;[data.blocks[bi],data.blocks[to]]=[data.blocks[to],data.blocks[bi]];}}render();save();}const view=t.closest('[data-view]');if(view){document.body.classList.toggle('preview-mode',view.dataset.view==='preview');document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b===view));closeMenus();}const mode=t.closest('[data-layout]');if(mode){layout=mode.dataset.layout;document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active',b===mode));paper();}if(!t.closest('.tool-menu'))closeMenus();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus();});
-  window.noteEditor={remember,format,textType,insertList,adjustFontSize,underline:()=>decorateLine(),wave:()=>decorateLine('#b73530','wavy'),resetSize:()=>style({}, {'data-default-size':'true'})};
+  window.noteEditor={remember,format,textType,insertList,adjustFontSize,underline:()=>decorateLine('#b73530','solid',true),wave:()=>decorateLine('#b73530','wavy',true),toggleHighlight,resetSize:()=>style({}, {'data-default-size':'true'})};
   $('#addBtn').addEventListener('click',addParagraph);$('#addBottom').addEventListener('click',addParagraph);$('#printBtn').addEventListener('click',()=>{document.body.classList.add('preview-mode');window.print();});$('#printPreviewBtn').addEventListener('click',()=>window.print());
   $('#newBtn').addEventListener('click',()=>window.noteApp.requestNewDocument(activeDoc.folderId));$('#resetBtn').addEventListener('click',()=>{if(!confirm('恢复示例内容？当前笔记会被替换。'))return;data=normalize(sample);render();save();toast('已恢复示例内容');});
   $('#importBtn').addEventListener('click',()=>$('#importFile').click());$('#importFile').addEventListener('change',async e=>{
