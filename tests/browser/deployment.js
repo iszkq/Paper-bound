@@ -43,20 +43,25 @@ async page => {
       await editor.click();
       const before=await editor.innerText();
       const cancelFile={name:'取消导入.txt',mimeType:'text/plain',buffer:Buffer.from('不应被导入的内容')};
-      const chooser1=await Promise.all([test.waitForEvent('filechooser'),test.locator('#importBtn').click()]);
-      test.once('dialog',dialog=>dialog.dismiss());await chooser1[0].setFiles(cancelFile);
+      async function chooseArticle(){
+        if(!await test.locator('#actionDialog[open]').count())await test.locator('#importBtn').click();
+        await test.locator('#articleImportTarget').selectOption('current');
+        return (await Promise.all([test.waitForEvent('filechooser'),test.locator('#articleChooseFile').click()]))[0];
+      }
+      const chooser1=await chooseArticle();
+      test.once('dialog',dialog=>dialog.dismiss());await chooser1.setFiles(cancelFile);
       await test.waitForFunction(()=>document.querySelector('#importFile').value==='');
       check(await editor.innerText()===before,'Cancelling import changed the note');
-      const chooser2=await Promise.all([test.waitForEvent('filechooser'),test.locator('#importBtn').click()]);
-      test.once('dialog',dialog=>dialog.accept());await chooser2[0].setFiles({name:'实际文章.txt',mimeType:'text/plain',buffer:Buffer.from('第一段导入正文\n\n第二段导入正文')});
+      const chooser2=await chooseArticle();
+      test.once('dialog',dialog=>dialog.accept());await chooser2.setFiles({name:'实际文章.txt',mimeType:'text/plain',buffer:Buffer.from('第一段导入正文\n\n第二段导入正文')});
       await test.waitForFunction(()=>noteApp.getState().data.paragraphs.length===2);
       check(await test.locator('#titleInput').inputValue()==='实际文章','Imported title was not updated');
       check(await test.locator('.paragraph-text').nth(1).innerText()==='第二段导入正文','Text import lost paragraph');
       await test.evaluate(()=>noteCloud.sync());await test.waitForFunction(()=>!noteCloud.getState().dirty&&!noteCloud.getState().busy);
       await test.reload();await test.waitForFunction(()=>window.noteCloud);await test.evaluate(()=>noteCloud.ready);
       check(await test.locator('.paragraph-text').count()===2,'Imported article was not persisted');
-      const chooser3=await Promise.all([test.waitForEvent('filechooser'),test.locator('#importBtn').click()]);
-      test.once('dialog',dialog=>dialog.accept());await chooser3[0].setFiles({name:'无P标签.html',mimeType:'text/html',buffer:Buffer.from('<h2>导入标题</h2><div>只有 div 的文章</div><script>window.shouldNeverRun=true</script>')});
+      const chooser3=await chooseArticle();
+      test.once('dialog',dialog=>dialog.accept());await chooser3.setFiles({name:'无P标签.html',mimeType:'text/html',buffer:Buffer.from('<h2>导入标题</h2><div>只有 div 的文章</div><script>window.shouldNeverRun=true</script>')});
       await test.waitForFunction(()=>document.querySelector('#titleInput').value==='无P标签');
       check((await test.locator('.paragraph-text').allInnerTexts()).join('').includes('只有 div 的文章'),'HTML without p tags was not imported');
       check(!await test.evaluate(()=>window.shouldNeverRun),'Imported script was executed');

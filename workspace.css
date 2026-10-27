@@ -79,6 +79,8 @@
 dialog { color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: var(--panel-radius); }
 dialog::backdrop { background: rgb(25 29 32 / 30%); }
 .app-dialog { width: min(440px, calc(100vw - 28px)); padding: 28px; max-height: 90vh; overflow: auto; }
+.article-import-dialog { width: min(640px, calc(100vw - 28px)); }
+.article-import-dialog textarea { width: 100%; min-height: 180px; resize: vertical; padding: 10px; border: 1px solid var(--line-strong); border-radius: 6px; font: inherit; line-height: 1.7; }
 .app-dialog h2 { font-size: 22px; margin: 0 0 10px; }
 .dialog-copy { color: var(--muted); line-height: 1.7; font-size: 13px; }
 .dialog-close-row { display: flex; justify-content: flex-end; margin: -14px -14px 0 0; }

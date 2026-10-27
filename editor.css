@@ -60,6 +60,10 @@
 .paragraph-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; min-height: 26px; }
 .para-number { color: var(--muted); font-size: 11px; }
 .para-controls { margin-left: auto; display: flex; gap: 4px; }
+.paragraph-drag { cursor: grab; }
+.paragraph-drag:active { cursor: grabbing; }
+.edit-pair[data-drop-position="before"] { box-shadow: 0 -2px 0 var(--red); }
+.edit-pair[data-drop-position="after"] { box-shadow: 0 2px 0 var(--red); }
 .delete-para { width: 30px; height: 28px; padding: 0; border: 0; border-radius: 4px; color: var(--muted); background: transparent; }
 .delete-para:hover { background: var(--red-soft); color: var(--red); }
 .border-toggle { border: 0; border-radius: 4px; padding: 5px 8px; color: var(--muted); background: #f4f5f5; font-size: 11px; }

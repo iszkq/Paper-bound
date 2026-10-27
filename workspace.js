@@ -17,6 +17,28 @@
     dialog.addEventListener('close',()=>{pressedOutside=false;});
   }
   closeOnBackdrop($('#libraryDialog'));
+  $('#importBtn').title='从文件或粘贴文本导入';
+  $('#importBtn').onclick=()=>{
+    const dialog=newDialog('导入文章','<p class="dialog-copy">选择文件，或直接粘贴正文。空行会分成不同文段。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><button class="btn" id="articleChooseFile">选择 TXT / Markdown / HTML 文件</button><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status">等待粘贴正文</p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
+    dialog.classList.add('article-import-dialog');
+    const input=$('#articlePasteText'),status=$('#articlePasteStatus');
+    input.oninput=()=>{const count=app.parseArticle(input.value).length;status.textContent=count?'将导入 '+count+' 个文段':'等待粘贴正文';};
+    $('#articleImportCancel').onclick=()=>dialog.close();
+    $('#articlePasteForm').onsubmit=e=>{
+      e.preventDefault();if(!input.value.trim()){status.textContent='请先粘贴正文';input.focus();return;}
+      if(app.importArticle(app.parseArticle(input.value),$('#articlePasteTitle').value,$('#articleImportTarget').value==='new'))dialog.close();
+    };
+    $('#articleChooseFile').onclick=()=>$('#importFile').click();
+    $('#importFile').onchange=async e=>{
+      const file=e.target.files?.[0];if(!file)return;
+      const createNew=$('#articleImportTarget').value==='new';
+      try{
+        const paragraphs=app.parseArticle(await file.text(),file.name.split('.').pop().toLowerCase());
+        if(app.importArticle(paragraphs,file.name.replace(/\.[^.]+$/,''),createNew))dialog.close();
+      }catch{status.textContent='文件读取失败，请使用 TXT、Markdown 或 HTML 文件。';}
+      finally{e.target.value='';}
+    };
+  };
   const templateOptions=(templates,selected='')=>templates.map(t=>'<option value="'+esc(t.id)+'" '+(t.id===selected?'selected':'')+'>'+esc(t.name)+(t.id===app.getState().library.defaultTemplateId?'（默认）':'')+'</option>').join('');
   const templateSummary=template=>{
     if(!template)return '保留默认顶部信息，正文和分析从空白开始。';
@@ -107,15 +129,71 @@
     $('#docDuplicate').onclick=()=>{app.save();const copy=noteRuntime.clone(doc);copy.id=noteRuntime.uuid();copy.title+=' · 副本';copy.data.title=copy.title;library.documents.push(copy);app.openDocument(copy.id);d.close();};
     $('#docDelete').onclick=()=>{if(!confirm('删除这份笔记？此操作无法撤销。'))return;app.save();library.documents=library.documents.filter(x=>x.id!==doc.id);if(!library.documents.length)app.newDocument();else if(app.getState().activeDoc.id===doc.id)app.openDocument(library.documents[0].id);app.updateLibrary();d.close();};
   };
-  // Preview sizing and image export use the same canvas and loaded document fonts.
+  // Rasterize the browser's own layout. Canvas text reconstruction changes CJK
+  // wrapping and paints multiline inline highlights as one bounding rectangle.
+  async function imageSnapshot(element){
+    element.getBoundingClientRect(); // Trigger font selection before waiting for loads.
+    await document.fonts.ready;
+    const clone=element.cloneNode(true),families=new Set(),pseudoRules=[];
+    const originals=[element,...element.querySelectorAll('*')],copies=[clone,...clone.querySelectorAll('*')];
+    const copyStyle=(computed,target)=>{for(const property of computed){
+      let value=computed.getPropertyValue(property);
+      // Serialized dimensions round to 3 decimals. Avoid rounding down one layout
+      // unit when re-parsing them, which otherwise accumulates over long documents.
+      if((property==='width'||property==='height')&&value.endsWith('px'))value=(parseFloat(value)+0.001)+'px';
+      target.style.setProperty(property,value);
+    }};
+    originals.forEach((original,index)=>{
+      const copy=copies[index],computed=getComputedStyle(original);copyStyle(computed,copy);
+      computed.fontFamily.split(',').forEach(family=>families.add(family.trim().replace(/^["']|["']$/g,'')));
+      for(const pseudo of ['::before','::after']){
+        const style=getComputedStyle(original,pseudo);
+        if(style.content==='none'||style.content==='normal'||!style.content)continue;
+        copy.setAttribute('data-export-node',index);
+        const declarations=Array.from(style,property=>property+':'+style.getPropertyValue(property)+';').join('');
+        pseudoRules.push('[data-export-node="'+index+'"]'+pseudo+'{'+declarations+'}');
+      }
+    });
+    const rect=element.getBoundingClientRect();
+    Object.assign(clone.style,{margin:'0',position:'relative',left:'0',top:'0',transform:'none',boxShadow:'none',width:rect.width+'px',maxWidth:'none'});
+    // SVG images cannot fetch fonts. Embed only the document's used web fonts,
+    // once per export, so custom Chinese fonts keep exactly the same metrics.
+    const dataURL=blob=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('导出字体读取失败，请重试。'));reader.readAsDataURL(blob);});
+    const fontRules=[];
+    for(const sheet of document.styleSheets){
+      let rules;try{rules=sheet.cssRules;}catch{continue;}
+      for(const rule of rules){
+        if(rule.type!==CSSRule.FONT_FACE_RULE||!families.has(rule.style.fontFamily.replace(/^["']|["']$/g,'')))continue;
+        let src=rule.style.getPropertyValue('src');
+        for(const match of [...src.matchAll(/url\(["']?([^"')]+)["']?\)/g)]){
+          const response=await fetch(new URL(match[1],sheet.href||document.baseURI));
+          if(!response.ok)throw Error('导出字体加载失败，请刷新后重试。');
+          src=src.replace(match[0],'url("'+await dataURL(await response.blob())+'")');
+        }
+        fontRules.push('@font-face{'+rule.style.cssText.replace(/src\s*:[^;]+;/i,'src:'+src+';')+'}');
+      }
+    }
+    const style=document.createElement('style');style.textContent=fontRules.join('\n')+'\n'+pseudoRules.join('\n');clone.prepend(style);
+    const markup=new XMLSerializer().serializeToString(clone);
+    const render=async(offset,height)=>{
+      const svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+rect.width+'" height="'+height+'"><foreignObject x="0" y="'+(-offset)+'" width="'+rect.width+'" height="'+rect.height+'">'+markup+'</foreignObject></svg>';
+      const image=new Image();
+      await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('图片生成失败，请使用新版浏览器重试。'));image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);});
+      const canvas=document.createElement('canvas');canvas.width=Math.ceil(rect.width*2);canvas.height=Math.ceil(height*2);
+      const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.scale(2,2);context.drawImage(image,0,0);
+      return canvas;
+    };
+    return {render,height:rect.height};
+  }
+  // Preview sizing and image export share the same layout and document fonts.
   const toolbar=$('.preview-toolbar');
   const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
   const scaleLabel=document.createElement('label');scaleLabel.className='preview-scale-label';scaleLabel.innerHTML='阅读字号 <select id="previewReadingSize" aria-label="预览阅读字号"><option value="17">17</option><option value="19">19</option><option value="22">22</option><option value="24">24</option></select>';toolbar.insertBefore(scaleLabel,exportButton);
   $('#previewReadingSize').onchange=e=>$('#paper').style.setProperty('--preview-reading-size',e.target.value+'px');
   exportButton.onclick=async()=>{
     const button=exportButton;button.disabled=true;button.textContent='正在生成图片…';
-    try{if(!window.html2canvas)throw new Error('图片组件未能加载，请刷新重试。');await document.fonts.ready;const el=$('#paper'),rect=el.getBoundingClientRect(),maxSlice=5000;
-      const count=Math.ceil(rect.height/maxSlice);for(let i=0;i<count;i++){const h=Math.min(maxSlice,rect.height-i*maxSlice);const canvas=await html2canvas(el,{scale:2,backgroundColor:'#fff',useCORS:true,height:h,y:i*maxSlice,windowWidth:window.innerWidth,logging:false});const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('图片生成失败。');download(blob,(app.getState().data.title||'阅读笔记')+(count>1?'-'+(i+1):'')+'.png');canvas.width=0;canvas.height=0;}
+    try{const snapshot=await imageSnapshot($('#paper')),maxSlice=5000;
+      const count=Math.ceil(snapshot.height/maxSlice);for(let i=0;i<count;i++){const h=Math.min(maxSlice,snapshot.height-i*maxSlice);const canvas=await snapshot.render(i*maxSlice,h);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('图片生成失败。');download(blob,(app.getState().data.title||'阅读笔记')+(count>1?'-'+(i+1):'')+'.png');canvas.width=0;canvas.height=0;}
       app.toast(count>1?'已分段导出 '+count+' 张高清图片':'图片已导出');
     }catch(err){app.toast(err.message||'图片导出失败，请重试。');}finally{button.disabled=false;button.textContent='导出图片';}
   };
