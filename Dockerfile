@@ -1,6 +1,7 @@
 FROM python:3.13-slim
 WORKDIR /app
 COPY server.py release.json *.html *.css *.js ./
+COPY favicon.ico favicon.png ./
 COPY fonts/ ./fonts/
 COPY vendor/ ./vendor/
 COPY data/ ./data/

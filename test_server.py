@@ -62,10 +62,16 @@ class ServerTests(unittest.TestCase):
             self.assertIn('no-cache', headers['Cache-Control'])
             source = source.decode('utf-8')
             self.assertIn('compat.js?v=', source)
-            for asset in re.findall(r'(?:src|href)="([^"?#]+\.(?:css|js)\?v=[^"#]+)"', source):
-                asset_status, _, asset_headers = self.request(client, '/' + asset)
+            self.assertIn('href="favicon.png?v=', source)
+            self.assertIn('href="favicon.ico?v=', source)
+            for asset in re.findall(r'(?:src|href)="([^"?#]+\.(?:css|js|ico|png)\?v=[^"#]+)"', source):
+                asset_status, content, asset_headers = self.request(client, '/' + asset)
                 self.assertEqual(asset_status, 200, asset)
                 self.assertIn('no-cache', asset_headers['Cache-Control'])
+                if asset.startswith('favicon.png'):
+                    self.assertTrue(content.startswith(b'\x89PNG\r\n\x1a\n'))
+                elif asset.startswith('favicon.ico'):
+                    self.assertTrue(content.startswith(b'\x00\x00\x01\x00'))
 
     def test_release_detects_missing_and_modified_files(self):
         with tempfile.TemporaryDirectory() as temp:

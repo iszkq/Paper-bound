@@ -157,7 +157,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         path = urlsplit(self.path).path
-        if path == '/' or path.endswith(('.html', '.css', '.js')):
+        if path in ('/', '/favicon.ico', '/favicon.png') or path.endswith(('.html', '.css', '.js')):
             self.send_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'same-origin')
@@ -395,7 +395,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.api()
         # Static serving is allowlisted: never expose database, scripts, backups or tests.
         path = urlsplit(self.path).path
-        allowed = {'/', '/index.html', '/login.html', '/admin.html', '/styles.css', '/editor.css', '/workspace.css', '/auth.css', '/admin.css', '/shortcuts.css', '/compat.js', '/engine.js', '/workspace.js', '/library-order.js', '/cloud.js', '/login.js', '/admin.js', '/shortcuts.js', '/favicon.ico'}
+        allowed = {'/', '/index.html', '/login.html', '/admin.html', '/styles.css', '/editor.css', '/workspace.css', '/auth.css', '/admin.css', '/shortcuts.css', '/compat.js', '/engine.js', '/workspace.js', '/library-order.js', '/cloud.js', '/login.js', '/admin.js', '/shortcuts.js', '/favicon.ico', '/favicon.png'}
         if path not in allowed and not (path.startswith(('/fonts/', '/vendor/', '/data/')) and '..' not in path and '\\' not in path and '%' not in path):
             return self.send_error(HTTPStatus.NOT_FOUND)
         resolved = Path(self.translate_path(self.path)).resolve()

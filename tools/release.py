@@ -13,10 +13,11 @@ def prepare(version):
         raise ValueError('Invalid version')
     for page in ROOT.glob('*.html'):
         source = page.read_text(encoding='utf-8')
-        source = re.sub(r'((?:src|href)="[^"?:]+\.(?:js|css))(?:\?v=[^"\s]+)?"', lambda m: m[1] + '?v=' + version + '"', source)
+        source = re.sub(r'((?:src|href)="[^"?:]+\.(?:js|css|ico|png))(?:\?v=[^"\s]+)?"', lambda m: m[1] + '?v=' + version + '"', source)
         with page.open('w', encoding='utf-8', newline='\n') as output:
             output.write(source)
     paths = {ROOT / 'server.py'}
+    paths.update(ROOT / name for name in ('favicon.ico', 'favicon.png'))
     for suffix in ('*.html', '*.css', '*.js'):
         paths.update(ROOT.glob(suffix))
     paths.discard(ROOT / 'app.js')  # Retired editor, not loaded by any page.
