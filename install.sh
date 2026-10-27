@@ -137,6 +137,8 @@ for file in "$DATA/notes.sqlite3" "$DATA/notes.sqlite3-wal" "$DATA/notes.sqlite3
 done
 systemctl daemon-reload
 systemctl enable paper-bound
+# Explicit installation/update restarts must not inherit an earlier crash limit.
+systemctl reset-failed paper-bound
 if ! systemctl start paper-bound; then
   journalctl -u paper-bound -n 40 --no-pager >&2 || true
   exit 1
