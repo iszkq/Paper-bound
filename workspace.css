@@ -99,10 +99,12 @@ dialog::backdrop { background: rgb(25 29 32 / 30%); }
 .bible-tabs { display: flex; gap: 24px; padding: 0 var(--panel-space); border-bottom: 1px solid var(--line); }
 .bible-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); min-height: 44px; padding: 8px 0; }
 .bible-tabs button.active { border-bottom-color: var(--red); color: var(--red); }
-.bible-controls { display: flex; gap: 12px; align-items: flex-end; padding: 18px var(--panel-space); }
+.bible-controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding: 18px var(--panel-space); }
 .bible-controls[hidden] { display: none; }
 .bible-controls label { display: grid; gap: 7px; font-size: 12px; min-width: 0; }
 .bible-controls label:first-child { flex: 1; }
+.bible-controls label.bible-testament-control { flex: 0 0 88px; }
+.bible-controls .bible-book-control { flex: 1 1 140px; }
 .bible-controls label:last-child { min-width: 100px; }
 .bible-results { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--panel-space) 18px; scroll-behavior: auto; }
 .verse-row { display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; padding: 14px 10px; border-radius: 6px; }
@@ -137,6 +139,7 @@ dialog::backdrop { background: rgb(25 29 32 / 30%); }
   .paper-date { font-size: 10px; } .paper-date strong { font-size: 14px; }
   .paper-columns-head, .content-pair { grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); }
   .bible-dialog { width: calc(100vw - 16px); height: 94dvh; max-height: 94dvh; }
+  #bibleBrowseControls label:last-child { flex: 1 1 100%; }
   .verse-row { grid-template-columns: 18px 1fr; gap: 8px; } .verse-jump { grid-column: 2; justify-self: start; }
   .bible-footer { flex-wrap: wrap; padding: 12px 16px; } .bible-footer .btn { min-height: 42px; }
   .preview-toolbar { align-items: center; } .preview-toolbar .btn { font-size: 12px; padding: 8px; }

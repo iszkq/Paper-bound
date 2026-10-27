@@ -51,6 +51,8 @@ sudo bash install.sh
 
 `/api/version` 可以核对实际版本、运行文件是否完整，以及更新后是否忘记重启。JS/CSS 地址带发行版号，应用页面和脚本要求缓存重新验证。
 
+**后续更新：** 先确认文档已同步，把新版 ZIP 解压到新目录，在新目录运行 `bash install.sh`；端口提示回车保留原值。安装器会先备份数据库，再更新程序，保留账号和文档。不要删除 `/var/lib/paper-bound`；[完整更新说明](deploy/README.md#6-更新与迁移)包含迁移和故障处理步骤。
+
 ### Docker（可选）
 
 已提供 Dockerfile、Compose 和 Caddy 配置。服务器需要 Docker Compose、可解析到服务器的域名，以及开放的 80/443 端口。

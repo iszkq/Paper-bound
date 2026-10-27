@@ -32,25 +32,53 @@ jobs:
       - name: Initialize isolated CI installation
         run: |
           python3 - <<'PY'
-          import json, secrets, urllib.request
-          payload = json.dumps({'username': 'ci_admin', 'password': secrets.token_urlsafe(24)}).encode()
+          import http.cookiejar, json, os, secrets, urllib.request
+          from pathlib import Path
+          credentials = {'username': 'ci_admin', 'password': secrets.token_urlsafe(24)}
+          library = {'folders': [{'id': 'reading', 'name': '阅读笔记', 'parentId': ''}], 'documents': [{'id': 'note', 'title': '升级前的文档', 'folderId': 'reading', 'data': {'title': '升级前的文档', 'author': '保留作者', 'paragraphs': [{'html': '<p>升级后必须保留的正文</p>', 'noteHtml': '保留分析'}]}}], 'activeId': 'note'}
+          saved = Path(os.environ['RUNNER_TEMP']) / 'paper-bound-update-check.json'
+          saved.write_text(json.dumps({'credentials': credentials, 'library': library}), encoding='utf-8')
+          saved.chmod(0o600)
+          client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+          payload = json.dumps(credentials).encode()
           request = urllib.request.Request('http://127.0.0.1:19188/api/setup', data=payload, headers={'Content-Type': 'application/json'})
-          with urllib.request.urlopen(request) as response:
+          with client.open(request) as response:
               assert json.load(response)['user']['role'] == 'admin'
+          request = urllib.request.Request('http://127.0.0.1:19188/api/library', method='PUT', data=json.dumps({'revision': 0, 'library': library}).encode(), headers={'Content-Type': 'application/json'})
+          with client.open(request) as response:
+              assert json.load(response)['revision'] == 1
           PY
       - name: Update without specifying port
         run: sudo bash install.sh
       - name: Verify saved port, account preservation and backup
         run: |
           python3 - <<'PY'
-          import json, urllib.request
+          import http.cookiejar, json, os, urllib.request
+          from pathlib import Path
+          saved = json.loads((Path(os.environ['RUNNER_TEMP']) / 'paper-bound-update-check.json').read_text(encoding='utf-8'))
           with urllib.request.urlopen('http://127.0.0.1:19188/api/setup') as response:
               assert json.load(response)['required'] is False
           with urllib.request.urlopen('http://127.0.0.1:19188/api/version') as response:
               version = json.load(response)
               assert version['filesValid'] and not version['restartRequired']
+          client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+          request = urllib.request.Request('http://127.0.0.1:19188/api/login', data=json.dumps(saved['credentials']).encode(), headers={'Content-Type': 'application/json'})
+          with client.open(request) as response:
+              assert json.load(response)['user']['role'] == 'admin'
+          with client.open('http://127.0.0.1:19188/api/library') as response:
+              result = json.load(response)
+              assert result['revision'] == 1 and result['library'] == saved['library']
           PY
-          sudo test -d /var/lib/paper-bound/backups
+          sudo python3 - <<'PY'
+          import json, sqlite3
+          from pathlib import Path
+          backups = list(Path('/var/lib/paper-bound/backups').glob('notes-*.sqlite3'))
+          assert backups, 'No update backup was created'
+          with sqlite3.connect(str(max(backups, key=lambda path: path.name))) as db:
+              library = json.loads(db.execute('SELECT content FROM libraries').fetchone()[0])
+              assert library['documents'][0]['data']['paragraphs'][0]['html'] == '<p>升级后必须保留的正文</p>'
+              assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+          PY
       - name: Change port on existing installation
         run: |
           sudo bash install.sh --port 19189

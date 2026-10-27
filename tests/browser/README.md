@@ -19,3 +19,14 @@ npx --yes --package @playwright/cli playwright-cli -s=deploy-check run-code --fi
 ```
 
 脚本会初始化隔离的测试账号，并返回每种访问环境的检查结果。截图写入 `output/playwright/`。测试结束后停止这次启动的测试服务。
+
+## 经文分组与波浪线快捷键
+
+`reading-tools.js` 在 4173 端口服务上使用独立浏览器上下文，不读取或更改当前浏览器文档。检查新建文档默认信息、预览信息、自定义信息刷新保留、旧约／新约卷章筛选、跨约多选与搜索跳转、关闭清空、波浪线快捷键与帮助、移动端控件宽度。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check open http://127.0.0.1:4173/index.html
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/reading-tools.js
+```
+
+这个脚本需要该地址处于未登录访客状态，不会初始化管理员或修改服务器文档。截图写入 `output/playwright/`。
