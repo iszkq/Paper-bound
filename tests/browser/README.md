@@ -1,0 +1,21 @@
+# 部署兼容性回归
+
+`deployment.js` 使用 Playwright CLI 的 `run-code --filename` 运行，覆盖真正处于非安全上下文的 HTTP IP 页面，并通过请求路由接入本机测试服务。另覆盖缺少 `AbortSignal.timeout` / `structuredClone` 的场景，以及模拟 HTTPS IP 页面。它不连接真实 FRP，也不验证公网 TLS 证书。
+
+测试包括登录、ID 创建、真实文件选择器、取消导入、TXT/HTML 导入、自动保存和重新加载、菜单互斥、版本完整性。测试会在 4175 端口服务中创建 `deployment_admin` 测试账号，请务必使用独立数据目录，不能连接实际用户数据库。
+
+运行方法（需要 Python、Node.js 和 Playwright CLI 可用的 Chrome 浏览器）：
+
+```sh
+mkdir -p output/playwright output/deployment-test-storage
+NOTES_DATA_DIR="$PWD/output/deployment-test-storage" NOTES_PORT=4175 sh start.sh
+```
+
+保持该终端运行，在另一个终端执行：
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=deploy-check open http://127.0.0.1:4175/login.html
+npx --yes --package @playwright/cli playwright-cli -s=deploy-check run-code --filename tests/browser/deployment.js
+```
+
+脚本会初始化隔离的测试账号，并返回每种访问环境的检查结果。截图写入 `output/playwright/`。测试结束后停止这次启动的测试服务。

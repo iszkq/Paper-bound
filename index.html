@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#f5f6f7">
   <link rel="icon" href="data:,">
   <title>纸间 · 阅读笔记</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="editor.css">
-  <link rel="stylesheet" href="workspace.css">
-  <link rel="stylesheet" href="shortcuts.css">
+  <link rel="stylesheet" href="styles.css?v=2026.10.27.1">
+  <link rel="stylesheet" href="editor.css?v=2026.10.27.1">
+  <link rel="stylesheet" href="workspace.css?v=2026.10.27.1">
+  <link rel="stylesheet" href="shortcuts.css?v=2026.10.27.1">
 </head>
 <body>
   <div class="app" id="app">
@@ -81,11 +81,12 @@
     <footer class="library-footer"><span>拖动可排序，拖到文件夹中可归档；也可用 Alt + ↑ / ↓ 排序。</span><button id="logoutBtn" class="text-button">退出当前账号</button></footer>
   </dialog>
   <dialog class="bible-dialog" id="bibleDialog" aria-labelledby="bibleTitle"><header class="bible-header"><div><h2 id="bibleTitle">圣经经文</h2><p id="bibleStatus">正在加载经文…</p></div><button class="small-icon-btn" id="bibleClose" aria-label="关闭">×</button></header><div class="bible-tabs"><button class="active" data-bible-tab="browse">卷章浏览</button><button data-bible-tab="search">经文搜索</button></div><section class="bible-controls" id="bibleBrowseControls"><label>卷名<select id="bibleBook"></select></label><label>章节<select id="bibleChapter"></select></label></section><section class="bible-controls" id="bibleSearchControls" hidden><label class="bible-search">搜索经文<input id="bibleQuery" type="search" placeholder="输入多个关键词，以空格分隔"></label><button id="bibleSearchButton" class="btn">搜索</button></section><div class="bible-results" id="bibleResults" aria-live="polite"></div><footer class="bible-footer"><span id="bibleSelectedCount">已选 0 节</span><button id="bibleClearSelection" class="btn">清除多选</button><button id="bibleCopy" class="btn btn-primary">复制所选经文</button></footer></dialog>
-  <script src="engine.js"></script>
-  <script src="vendor/html2canvas.min.js"></script>
-  <script src="workspace.js"></script>
-  <script src="library-order.js"></script>
-  <script src="cloud.js"></script>
-  <script src="shortcuts.js"></script>
+  <script src="compat.js?v=2026.10.27.1"></script>
+  <script src="engine.js?v=2026.10.27.1"></script>
+  <script src="vendor/html2canvas.min.js?v=2026.10.27.1"></script>
+  <script src="workspace.js?v=2026.10.27.1"></script>
+  <script src="library-order.js?v=2026.10.27.1"></script>
+  <script src="cloud.js?v=2026.10.27.1"></script>
+  <script src="shortcuts.js?v=2026.10.27.1"></script>
 </body>
 </html>

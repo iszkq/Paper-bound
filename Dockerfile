@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 WORKDIR /app
-COPY server.py *.html *.css *.js ./
+COPY server.py release.json *.html *.css *.js ./
 COPY fonts/ ./fonts/
 COPY vendor/ ./vendor/
 COPY data/ ./data/

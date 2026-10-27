@@ -12,7 +12,7 @@
 
 ## 本机启动
 
-安装 Python 3.13 或更新版本，在本目录执行：
+安装 Python 3.10 或更新版本（本机测试使用 3.13），在本目录执行：
 
 ```powershell
 python server.py --host 127.0.0.1 --port 4173
@@ -38,6 +38,19 @@ python server.py --host 127.0.0.1 --port 4173
 
 ## 服务器部署
 
+**不需要容器。** 可以直接上传完整项目、运行 Python 服务，再从浏览器访问。1Panel、内网 HTTP + IP 和 FRP 公网入口的完整操作见 [非容器部署说明](deploy/README.md)。不需要安装 npm 依赖或打包前端；登录与云同步需要 Python 服务，纯静态网站无法提供这部分功能。
+
+```sh
+cd /你的上传目录
+NOTES_HOST=0.0.0.0 NOTES_PORT=8080 sh start.sh
+```
+
+然后访问 `http://内网IP:8080`。使用 systemd 保持服务运行的方法见部署说明。内网 HTTP 与公网 HTTPS 同时使用时，原生配置保持 `NOTES_SECURE_COOKIES=0`，让两个入口都能登录。
+
+`/api/version` 可以核对实际版本、运行文件是否完整，以及更新后是否忘记重启。JS/CSS 地址带发行版号，应用页面和脚本要求缓存重新验证。
+
+### Docker（可选）
+
 已提供 Dockerfile、Compose 和 Caddy 配置。服务器需要 Docker Compose、可解析到服务器的域名，以及开放的 80/443 端口。
 
 1. 将项目文件上传服务器，保留 `fonts/`、`vendor/` 和 `data/`。
@@ -51,7 +64,7 @@ Caddy 自动申请 HTTPS 证书。Compose 已启用 Secure Cookie，必须通过
 
 不用 Docker 时，也可直接运行 `server.py --host 0.0.0.0 --port 8080`，使用进程管理工具保持运行，并在前面配置 HTTPS 反向代理。`NOTES_DATA_DIR` 指定持久数据目录，`NOTES_SECURE_COOKIES=1` 用于 HTTPS 部署。当前架构适合单实例部署，不应让多个应用实例同时共享同一 SQLite 文件。
 
-目前提供可部署版本，尚未部署到公网。本机没有 Docker，容器构建尚未实测。
+本机没有 Docker，容器构建尚未实测。应用本身已在宿主机 Python 服务上测试；没有访问或操作用户实际的 1Panel / FRP 服务器。
 
 ## 数据与依赖
 
@@ -64,3 +77,7 @@ Caddy 自动申请 HTTPS 证书。Compose 已启用 Secure Cookie，必须通过
 执行 `python -m unittest test_server -q` 验证服务端初始化、账号权限、用户数据隔离、同步版本冲突、管理操作和静态文件访问范围。测试使用临时数据库，不修改实际用户数据。
 
 `output/playwright/` 保存开发阶段的浏览器验证脚本和截图。本次已验证管理员初始化、文件夹与文档拖放、同账号多浏览器同步、离线恢复、冲突保留双版本、账号隔离、字体作用范围和讲义/表格预览。
+
+2026-10-27 修复：普通 HTTP + IP/域名访问时，浏览器不提供 `crypto.randomUUID()`，旧版会在文档库初始化时报错，连带使导入等操作失效。现在使用 `getRandomValues()` 生成文档 ID，并提供超时与数据克隆兼容方法。回归测试增加 HTTP 非安全上下文、旧 API 缺失、真实文件导入、菜单互斥、登录后保存与重载，避免只验证 localhost。
+
+维护者发布前执行 `python tools/release.py 版本号` 更新资源版本和运行文件指纹，再运行测试并提交。用户下载完整发行版无需运行发布工具。

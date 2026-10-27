@@ -28,6 +28,34 @@ RATE_LOCK = threading.Lock()
 ATTEMPTS = {}
 
 
+def release_info(root=ROOT):
+    """Describe the actual files, so ZIP uploads and Docker builds can be compared."""
+    try:
+        manifest = json.loads((root / 'release.json').read_text(encoding='utf-8'))
+        version, files = manifest['version'], manifest['files']
+    except (OSError, ValueError, KeyError):
+        return {'version': 'development', 'build': 'unknown', 'filesValid': False, 'changedFiles': ['release.json']}
+    actual, changed = {}, []
+    for name, expected in files.items():
+        path = (root / name).resolve()
+        if not path.is_relative_to(root.resolve()):
+            continue
+        try:
+            content = path.read_bytes()
+            if path.suffix in ('.html', '.css', '.js', '.py', '.csv'):
+                content = content.replace(b'\r\n', b'\n')
+            actual[name] = hashlib.sha256(content).hexdigest()
+        except OSError:
+            actual[name] = 'missing'
+        if actual[name] != expected:
+            changed.append(name)
+    digest = hashlib.sha256(json.dumps({'version': version, 'files': actual}, sort_keys=True).encode()).hexdigest()[:16]
+    return {'version': version, 'build': digest, 'filesValid': not changed, 'changedFiles': changed}
+
+
+RUNNING_RELEASE = release_info()
+
+
 @contextmanager
 def database():
     conn = sqlite3.connect(DATA_DIR / 'notes.sqlite3', timeout=15)
@@ -115,6 +143,9 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def end_headers(self):
+        path = urlsplit(self.path).path
+        if path == '/' or path.endswith(('.html', '.css', '.js')):
+            self.send_header('Cache-Control', 'no-cache, max-age=0, must-revalidate')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'same-origin')
         self.send_header('X-Frame-Options', 'DENY')
@@ -344,11 +375,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(503, {'error': '存储暂时不可用，请稍后重试。'})
 
     def do_GET(self):
+        if urlsplit(self.path).path == '/api/version':
+            current = release_info()
+            return self.reply(200, {**current, 'runningBuild': RUNNING_RELEASE['build'], 'restartRequired': current['build'] != RUNNING_RELEASE['build']})
         if urlsplit(self.path).path.startswith('/api/'):
             return self.api()
         # Static serving is allowlisted: never expose database, scripts, backups or tests.
         path = urlsplit(self.path).path
-        allowed = {'/', '/index.html', '/login.html', '/admin.html', '/styles.css', '/editor.css', '/workspace.css', '/auth.css', '/admin.css', '/shortcuts.css', '/engine.js', '/workspace.js', '/library-order.js', '/cloud.js', '/login.js', '/admin.js', '/shortcuts.js', '/favicon.ico'}
+        allowed = {'/', '/index.html', '/login.html', '/admin.html', '/styles.css', '/editor.css', '/workspace.css', '/auth.css', '/admin.css', '/shortcuts.css', '/compat.js', '/engine.js', '/workspace.js', '/library-order.js', '/cloud.js', '/login.js', '/admin.js', '/shortcuts.js', '/favicon.ico'}
         if path not in allowed and not (path.startswith(('/fonts/', '/vendor/', '/data/')) and '..' not in path and '\\' not in path and '%' not in path):
             return self.send_error(HTTPStatus.NOT_FOUND)
         resolved = Path(self.translate_path(self.path)).resolve()
@@ -381,5 +415,5 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=4173)
     args = parser.parse_args()
     initialize()
-    print(f'Paper Notes: http://{args.host}:{args.port}', flush=True)
+    print(f"Paper Notes {RUNNING_RELEASE['version']} ({RUNNING_RELEASE['build']}): http://{args.host}:{args.port}", flush=True)
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()

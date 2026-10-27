@@ -54,7 +54,7 @@
   $('#newFolderBtn').onclick=()=>{
     const parent=folder==='all'?'':folder;
     const d=newDialog('新建文件夹','<form id="newFolderForm"><label>文件夹名称<input id="newFolderName" maxlength="80" required autofocus placeholder="例如：阅读笔记"></label><p class="dialog-copy">'+(parent?'将在当前文件夹内创建。':'将在文件库中创建。')+'</p><button type="submit" class="btn btn-primary">创建文件夹</button></form>');
-    $('#newFolderForm').onsubmit=e=>{e.preventDefault();const name=$('#newFolderName').value.trim();if(!name)return;const lib=app.getState().library,id=crypto.randomUUID();lib.folders.push({id,name,parentId:parent});folder=id;$('#documentSearch').value='';app.updateLibrary();d.close();};
+    $('#newFolderForm').onsubmit=e=>{e.preventDefault();const name=$('#newFolderName').value.trim();if(!name)return;const lib=app.getState().library,id=noteRuntime.uuid();lib.folders.push({id,name,parentId:parent});folder=id;$('#documentSearch').value='';app.updateLibrary();d.close();};
   };
   $('#renameFolderBtn').onclick=()=>{
     const {library}=app.getState(),f=library.folders.find(x=>x.id===folder);if(!f)return;
@@ -68,7 +68,7 @@
     const {library}=app.getState(),doc=library.documents.find(x=>x.id===menu.dataset.docMenu);
     const d=newDialog('管理笔记','<label>笔记名称<input id="docRename" value="'+esc(doc.title)+'" maxlength="160"></label><label>所在文件夹<select id="docFolder"><option value="">未分类</option>'+library.folders.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('')+'</select></label><div class="dialog-actions"><button id="docSave" class="btn btn-primary">保存</button><button id="docDuplicate" class="btn">复制笔记</button><button id="docDelete" class="btn danger-button">删除</button></div>');$('#docFolder').value=doc.folderId;
     $('#docSave').onclick=()=>{doc.title=$('#docRename').value.trim()||'未命名笔记';doc.folderId=$('#docFolder').value;doc.data.title=doc.title;if(doc.id===app.getState().activeDoc.id){app.getState().data.title=doc.title;$('#titleInput').value=doc.title;$('#titleInput').dispatchEvent(new Event('input',{bubbles:true}));}app.updateLibrary();d.close();};
-    $('#docDuplicate').onclick=()=>{app.save();const copy=structuredClone(doc);copy.id=crypto.randomUUID();copy.title+=' · 副本';copy.data.title=copy.title;library.documents.push(copy);app.openDocument(copy.id);d.close();};
+    $('#docDuplicate').onclick=()=>{app.save();const copy=noteRuntime.clone(doc);copy.id=noteRuntime.uuid();copy.title+=' · 副本';copy.data.title=copy.title;library.documents.push(copy);app.openDocument(copy.id);d.close();};
     $('#docDelete').onclick=()=>{if(!confirm('删除这份笔记？此操作无法撤销。'))return;app.save();library.documents=library.documents.filter(x=>x.id!==doc.id);if(!library.documents.length)app.newDocument();else if(app.getState().activeDoc.id===doc.id)app.openDocument(library.documents[0].id);app.updateLibrary();d.close();};
   };
   // Preview sizing and image export use the same canvas and loaded document fonts.

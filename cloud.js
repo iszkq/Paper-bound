@@ -11,7 +11,7 @@
   const badge=(message,state='')=>{ $('#saveText').textContent=message;mobileStatus.textContent=message;mobileStatus.dataset.state=state;$('#syncStatusBtn').dataset.state=state;$('#syncStatusBtn').title=lastError||'点击立即同步；本机修改会自动保存'; };
   function remember(){if(key())localStorage.setItem(key(),JSON.stringify({revision,dirty}));}
   function status(){if(!account.user){badge('仅保存在本机');return;}if(authExpired)badge('登录已失效 · 点击登录','error');else if(conflict)badge('同步冲突 · 点击处理','conflict');else if(busy)badge('正在同步…','busy');else if(lastError)badge('本机已保存 · 同步待重试','error');else badge(dirty?'本机已保存 · 等待同步':'已同步到服务器',dirty?'pending':'synced');}
-  async function api(path,options={}){const response=await fetch(path,{...options,headers:{'Content-Type':'application/json',...options.headers},signal:AbortSignal.timeout(12000)});let result;try{result=await response.json();}catch{throw Error('文档服务未连接，请稍后重试。');}if(!response.ok){if(path==='/api/library'&&response.status===401)authExpired=true;const err=Error(result.error||'同步失败，请稍后重试。');err.status=response.status;throw err;}if(path==='/api/library')authExpired=false;return result;}
+  async function api(path,options={}){const response=await fetch(path,{...options,headers:{'Content-Type':'application/json',...options.headers},signal:noteRuntime.timeout(12000)});let result;try{result=await response.json();}catch{throw Error('文档服务未连接，请稍后重试。');}if(!response.ok){if(path==='/api/library'&&response.status===401)authExpired=true;const err=Error(result.error||'同步失败，请稍后重试。');err.status=response.status;throw err;}if(path==='/api/library')authExpired=false;return result;}
   function apply(lib){suspend=true;try{app.replaceLibrary(lib);lastContent=content();}finally{suspend=false;}}
   function queue(){clearTimeout(timer);timer=setTimeout(()=>push(),750);}
   document.addEventListener('notesaved',()=>{
@@ -36,16 +36,16 @@
   }
   function dialog(id,title,html){let d=$('#'+id);d?.remove();d=document.createElement('dialog');d.id=id;d.className='app-dialog';d.innerHTML='<form method="dialog" class="dialog-close-row"><button class="small-icon-btn" aria-label="关闭">×</button></form><h2>'+esc(title)+'</h2>'+html;document.body.append(d);d.showModal();return d;}
   function mergeLibraries(remote,local){
-    const merged=structuredClone(remote),folderMap=new Map(),docMap=new Map();
-    for(const f of local.folders){const existing=merged.folders.find(x=>x.id===f.id);folderMap.set(f.id,!existing||existing.name===f.name&&existing.parentId===f.parentId?f.id:crypto.randomUUID());}
+    const merged=noteRuntime.clone(remote),folderMap=new Map(),docMap=new Map();
+    for(const f of local.folders){const existing=merged.folders.find(x=>x.id===f.id);folderMap.set(f.id,!existing||existing.name===f.name&&existing.parentId===f.parentId?f.id:noteRuntime.uuid());}
     for(const f of local.folders){const id=folderMap.get(f.id);if(!merged.folders.some(x=>x.id===id))merged.folders.push({...f,id,parentId:folderMap.get(f.parentId)||''});}
-    for(const doc of local.documents){const existing=merged.documents.find(x=>x.id===doc.id);if(existing&&JSON.stringify(existing.data)===JSON.stringify(doc.data)&&existing.title===doc.title&&existing.folderId===(folderMap.get(doc.folderId)||'')){docMap.set(doc.id,doc.id);continue;}const copy=structuredClone(doc);if(existing){copy.id=crypto.randomUUID();copy.title+=' · 本机副本';copy.data.title=copy.title;}copy.folderId=folderMap.get(doc.folderId)||'';merged.documents.push(copy);docMap.set(doc.id,copy.id);}
+    for(const doc of local.documents){const existing=merged.documents.find(x=>x.id===doc.id);if(existing&&JSON.stringify(existing.data)===JSON.stringify(doc.data)&&existing.title===doc.title&&existing.folderId===(folderMap.get(doc.folderId)||'')){docMap.set(doc.id,doc.id);continue;}const copy=noteRuntime.clone(doc);if(existing){copy.id=noteRuntime.uuid();copy.title+=' · 本机副本';copy.data.title=copy.title;}copy.folderId=folderMap.get(doc.folderId)||'';merged.documents.push(copy);docMap.set(doc.id,copy.id);}
     merged.activeId=docMap.get(local.activeId)||remote.activeId;return merged;
   }
   function resolveConflict(){
     if($('#syncConflict')?.open)return;
     const d=dialog('syncConflict','其他位置有新的修改','<p class="dialog-copy">你的本机修改已保留。可以合并两个版本（有差异的文档另存为“本机副本”），或使用服务器版本。</p><p id="conflictError" class="form-error" role="alert"></p><div class="dialog-actions"><button class="btn btn-primary" id="mergeConflict">保留两个版本</button><button class="btn" id="remoteConflict">使用服务器版本</button></div>');
-    const resolve=async merge=>{if(busy)return;busy=true;try{app.save();const local=structuredClone(app.getState().library);const remote=await api('/api/library');if(!remote.library)throw Error('服务器尚无文档，请稍后重试。');if(!merge&&!confirm('使用服务器版本？当前本机版本将先下载为备份。'))return;if(!merge)backup(local,'同步前本机备份');apply(merge?mergeLibraries(remote.library,local):remote.library);revision=remote.revision;conflict=false;dirty=merge;lastError='';remember();d.close();}catch(err){$('#conflictError').textContent=err.message;}finally{busy=false;status();if(dirty&&!conflict)queue();}};
+    const resolve=async merge=>{if(busy)return;busy=true;try{app.save();const local=noteRuntime.clone(app.getState().library);const remote=await api('/api/library');if(!remote.library)throw Error('服务器尚无文档，请稍后重试。');if(!merge&&!confirm('使用服务器版本？当前本机版本将先下载为备份。'))return;if(!merge)backup(local,'同步前本机备份');apply(merge?mergeLibraries(remote.library,local):remote.library);revision=remote.revision;conflict=false;dirty=merge;lastError='';remember();d.close();}catch(err){$('#conflictError').textContent=err.message;}finally{busy=false;status();if(dirty&&!conflict)queue();}};
     $('#mergeConflict').onclick=()=>resolve(true);$('#remoteConflict').onclick=()=>resolve(false);
   }
   $('#syncStatusBtn').onclick=()=>{if(authExpired){app.save();location.href='login.html';}else if(conflict)resolveConflict();else if(account.user){lastError='';dirty?push():pull();}else app.toast('登录后可按账号保存并同步文档');};
@@ -53,9 +53,9 @@
   function backup(library,name){const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,library},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);}
   function importLibrary(source){
     if(!Array.isArray(source?.documents)||!source.documents.length||!Array.isArray(source.folders))throw Error('没有可导入的文档。');
-    const copy=structuredClone(source),map=new Map(copy.folders.map(f=>[f.id,crypto.randomUUID()]));
+    const copy=noteRuntime.clone(source),map=new Map(copy.folders.map(f=>[f.id,noteRuntime.uuid()]));
     copy.folders=copy.folders.map(f=>({...f,id:map.get(f.id),parentId:map.get(f.parentId)||''}));
-    copy.documents=copy.documents.map(d=>({...d,id:crypto.randomUUID(),folderId:map.get(d.folderId)||'',data:app.normalize(d.data)}));
+    copy.documents=copy.documents.map(d=>({...d,id:noteRuntime.uuid(),folderId:map.get(d.folderId)||'',data:app.normalize(d.data)}));
     const lib=app.getState().library;lib.folders.push(...copy.folders);lib.documents.push(...copy.documents);app.updateLibrary();
   }
   async function logout(){

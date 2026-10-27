@@ -1,0 +1,23 @@
+name: Verify application
+on: [push, pull_request]
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest test_server -q
+      - run: bash -n start.sh
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: for file in compat.js engine.js workspace.js cloud.js library-order.js login.js admin.js shortcuts.js; do node --check "$file"; done

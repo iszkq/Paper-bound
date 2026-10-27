@@ -1,8 +1,10 @@
 import copy
 import http.cookiejar
 import json
+import hashlib
 from pathlib import Path
 import tempfile
+import re
 import threading
 import unittest
 import urllib.error
@@ -45,6 +47,37 @@ class ServerTests(unittest.TestCase):
             except ValueError:
                 pass
             return response.status, body, dict(response.headers)
+
+    def test_deployment_pages_assets_and_version(self):
+        client = self.client()
+        status, version, headers = self.request(client, '/api/version')
+        self.assertEqual(status, 200)
+        self.assertTrue(version['filesValid'], version['changedFiles'])
+        self.assertFalse(version['restartRequired'])
+        self.assertEqual(headers['Cache-Control'], 'no-store')
+        self.assertNotEqual(version['version'], 'development')
+        for page in ('/', '/index.html', '/login.html', '/admin.html'):
+            status, source, headers = self.request(client, page)
+            self.assertEqual(status, 200)
+            self.assertIn('no-cache', headers['Cache-Control'])
+            source = source.decode('utf-8')
+            self.assertIn('compat.js?v=', source)
+            for asset in re.findall(r'(?:src|href)="([^"?#]+\.(?:css|js)\?v=[^"#]+)"', source):
+                asset_status, _, asset_headers = self.request(client, '/' + asset)
+                self.assertEqual(asset_status, 200, asset)
+                self.assertIn('no-cache', asset_headers['Cache-Control'])
+
+    def test_release_detects_missing_and_modified_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'example.js').write_bytes(b'const value = 1;\r\n')
+            expected = hashlib.sha256(b'const value = 1;\n').hexdigest()
+            (root / 'release.json').write_text(json.dumps({'version': 'test', 'files': {'example.js': expected}}), encoding='utf-8')
+            self.assertTrue(server.release_info(root)['filesValid'])
+            (root / 'example.js').write_bytes(b'const value = 2;\n')
+            self.assertEqual(server.release_info(root)['changedFiles'], ['example.js'])
+            (root / 'example.js').unlink()
+            self.assertEqual(server.release_info(root)['changedFiles'], ['example.js'])
 
     def test_accounts_sync_isolation_conflicts_and_paths(self):
         a, b, second, guest = (self.client() for _ in range(4))
