@@ -40,6 +40,9 @@
     for(const f of local.folders){const existing=merged.folders.find(x=>x.id===f.id);folderMap.set(f.id,!existing||existing.name===f.name&&existing.parentId===f.parentId?f.id:noteRuntime.uuid());}
     for(const f of local.folders){const id=folderMap.get(f.id);if(!merged.folders.some(x=>x.id===id))merged.folders.push({...f,id,parentId:folderMap.get(f.parentId)||''});}
     for(const doc of local.documents){const existing=merged.documents.find(x=>x.id===doc.id);if(existing&&JSON.stringify(existing.data)===JSON.stringify(doc.data)&&existing.title===doc.title&&existing.folderId===(folderMap.get(doc.folderId)||'')){docMap.set(doc.id,doc.id);continue;}const copy=noteRuntime.clone(doc);if(existing){copy.id=noteRuntime.uuid();copy.title+=' · 本机副本';copy.data.title=copy.title;}copy.folderId=folderMap.get(doc.folderId)||'';merged.documents.push(copy);docMap.set(doc.id,copy.id);}
+    merged.templates=merged.templates||[];const templateMap=new Map();
+    for(const template of local.templates||[]){const existing=merged.templates.find(t=>t.id===template.id);if(existing&&existing.name===template.name&&JSON.stringify(existing.data)===JSON.stringify(template.data)){templateMap.set(template.id,existing.id);continue;}const copy=noteRuntime.clone(template);if(existing){copy.id=noteRuntime.uuid();copy.name=(copy.name.slice(0,70)+' · 本机副本');}templateMap.set(template.id,copy.id);merged.templates.push(copy);}
+    if(!merged.defaultTemplateId)merged.defaultTemplateId=templateMap.get(local.defaultTemplateId)||'';
     merged.activeId=docMap.get(local.activeId)||remote.activeId;return merged;
   }
   function resolveConflict(){
@@ -54,9 +57,12 @@
   function importLibrary(source){
     if(!Array.isArray(source?.documents)||!source.documents.length||!Array.isArray(source.folders))throw Error('没有可导入的文档。');
     const copy=noteRuntime.clone(source),map=new Map(copy.folders.map(f=>[f.id,noteRuntime.uuid()]));
+    if(copy.templates!==undefined&&!Array.isArray(copy.templates))throw Error('模板备份格式不正确。');
+    const templateMap=new Map();
+    copy.templates=(copy.templates||[]).map(template=>{if(!template||typeof template.id!=='string'||typeof template.name!=='string'||!template.name.trim()||!template.data||typeof template.data!=='object')throw Error('模板备份格式不正确。');const id=noteRuntime.uuid();templateMap.set(template.id,id);return {...template,id,name:template.name.trim().slice(0,80),data:app.normalize(template.data)};});
     copy.folders=copy.folders.map(f=>({...f,id:map.get(f.id),parentId:map.get(f.parentId)||''}));
     copy.documents=copy.documents.map(d=>({...d,id:noteRuntime.uuid(),folderId:map.get(d.folderId)||'',data:app.normalize(d.data)}));
-    const lib=app.getState().library;lib.folders.push(...copy.folders);lib.documents.push(...copy.documents);app.updateLibrary();
+    const lib=app.getState().library;lib.folders.push(...copy.folders);lib.documents.push(...copy.documents);lib.templates.push(...copy.templates);if(!lib.defaultTemplateId)lib.defaultTemplateId=templateMap.get(copy.defaultTemplateId)||'';app.updateLibrary();
   }
   async function logout(){
     const ok=await push();if(!ok&&dirty&&!confirm('还有修改尚未同步，退出后会继续保留在本机。仍然退出？'))return;

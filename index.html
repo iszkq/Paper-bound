@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#f5f6f7">
   <link rel="icon" href="data:,">
   <title>纸间 · 阅读笔记</title>
-  <link rel="stylesheet" href="styles.css?v=2026.10.27.2">
-  <link rel="stylesheet" href="editor.css?v=2026.10.27.2">
-  <link rel="stylesheet" href="workspace.css?v=2026.10.27.2">
-  <link rel="stylesheet" href="shortcuts.css?v=2026.10.27.2">
+  <link rel="stylesheet" href="styles.css?v=2026.10.27.3">
+  <link rel="stylesheet" href="editor.css?v=2026.10.27.3">
+  <link rel="stylesheet" href="workspace.css?v=2026.10.27.3">
+  <link rel="stylesheet" href="shortcuts.css?v=2026.10.27.3">
 </head>
 <body>
   <div class="app" id="app">
@@ -22,7 +22,8 @@
       <button class="btn btn-quiet" id="libraryToggle" title="文档与文件夹" aria-label="文档与文件夹"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6.5h7l2 2H21v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9h18"/></svg><span class="btn-label">文件库</span></button>
       <div class="top-spacer"></div>
       <button class="save-state sync-state" id="syncStatusBtn" title="查看同步状态或立即重试"><span class="save-dot"></span><span id="saveText">已保存到本机</span></button>
-      <button class="btn btn-quiet" id="newBtn" title="新建空白笔记" aria-label="新建空白笔记"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label">新建空白</span></button>
+      <button class="btn btn-quiet" id="newBtn" title="新建文档，可选择自己的模板" aria-label="新建文档"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label">新建文档</span></button>
+      <button class="btn btn-quiet" id="templateOpen" title="保存和管理文档模板" aria-label="文档模板"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h8M8 11h8M8 15h5"/></svg><span class="btn-label">模板</span></button>
       <button class="btn btn-quiet" id="importBtn" title="导入 TXT、Markdown 或 HTML" aria-label="导入文章"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6h14v-6"/></svg><span class="btn-label">导入文章</span></button>
       <button class="btn btn-quiet" id="resetBtn" title="恢复示例内容" aria-label="恢复示例内容"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/></svg><span class="btn-label">重置示例</span></button>
       <button class="btn btn-primary" id="printBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/></svg><span class="btn-label">导出 PDF</span></button>
@@ -80,12 +81,12 @@
     <footer class="library-footer"><span>拖动可排序，拖到文件夹中可归档；也可用 Alt + ↑ / ↓ 排序。</span><button id="logoutBtn" class="text-button">退出当前账号</button></footer>
   </dialog>
   <dialog class="bible-dialog" id="bibleDialog" aria-labelledby="bibleTitle"><header class="bible-header"><div><h2 id="bibleTitle">圣经经文</h2><p id="bibleStatus">正在加载经文…</p></div><button class="small-icon-btn" id="bibleClose" aria-label="关闭">×</button></header><div class="bible-tabs"><button class="active" data-bible-tab="browse">卷章浏览</button><button data-bible-tab="search">经文搜索</button></div><section class="bible-controls" id="bibleBrowseControls"><label class="bible-testament-control">约别<select id="bibleTestament" aria-label="约别"><option value="旧约">旧约</option><option value="新约">新约</option></select></label><label class="bible-book-control">卷名<select id="bibleBook" aria-label="卷名"></select></label><label>章节<select id="bibleChapter"></select></label></section><section class="bible-controls" id="bibleSearchControls" hidden><label class="bible-search">搜索经文<input id="bibleQuery" type="search" placeholder="输入多个关键词，以空格分隔"></label><button id="bibleSearchButton" class="btn">搜索</button></section><div class="bible-results" id="bibleResults" aria-live="polite"></div><footer class="bible-footer"><span id="bibleSelectedCount">已选 0 节</span><button id="bibleClearSelection" class="btn">清除多选</button><button id="bibleCopy" class="btn btn-primary">复制所选经文</button></footer></dialog>
-  <script src="compat.js?v=2026.10.27.2"></script>
-  <script src="engine.js?v=2026.10.27.2"></script>
-  <script src="vendor/html2canvas.min.js?v=2026.10.27.2"></script>
-  <script src="workspace.js?v=2026.10.27.2"></script>
-  <script src="library-order.js?v=2026.10.27.2"></script>
-  <script src="cloud.js?v=2026.10.27.2"></script>
-  <script src="shortcuts.js?v=2026.10.27.2"></script>
+  <script src="compat.js?v=2026.10.27.3"></script>
+  <script src="engine.js?v=2026.10.27.3"></script>
+  <script src="vendor/html2canvas.min.js?v=2026.10.27.3"></script>
+  <script src="workspace.js?v=2026.10.27.3"></script>
+  <script src="library-order.js?v=2026.10.27.3"></script>
+  <script src="cloud.js?v=2026.10.27.3"></script>
+  <script src="shortcuts.js?v=2026.10.27.3"></script>
 </body>
 </html>

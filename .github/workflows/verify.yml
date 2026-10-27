@@ -36,6 +36,7 @@ jobs:
           from pathlib import Path
           credentials = {'username': 'ci_admin', 'password': secrets.token_urlsafe(24)}
           library = {'folders': [{'id': 'reading', 'name': '阅读笔记', 'parentId': ''}], 'documents': [{'id': 'note', 'title': '升级前的文档', 'folderId': 'reading', 'data': {'title': '升级前的文档', 'author': '保留作者', 'paragraphs': [{'html': '<p>升级后必须保留的正文</p>', 'noteHtml': '保留分析'}]}}], 'activeId': 'note'}
+          library.update(templates=[{'id': 'template', 'name': '升级前的模板', 'data': library['documents'][0]['data']}], defaultTemplateId='template')
           saved = Path(os.environ['RUNNER_TEMP']) / 'paper-bound-update-check.json'
           saved.write_text(json.dumps({'credentials': credentials, 'library': library}), encoding='utf-8')
           saved.chmod(0o600)
@@ -77,6 +78,7 @@ jobs:
           with sqlite3.connect(str(max(backups, key=lambda path: path.name))) as db:
               library = json.loads(db.execute('SELECT content FROM libraries').fetchone()[0])
               assert library['documents'][0]['data']['paragraphs'][0]['html'] == '<p>升级后必须保留的正文</p>'
+              assert library['templates'][0]['name'] == '升级前的模板' and library['defaultTemplateId'] == 'template'
               assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
           PY
       - name: Change port on existing installation

@@ -30,3 +30,14 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 ```
 
 这个脚本需要该地址处于未登录访客状态，不会初始化管理员或修改服务器文档。截图写入 `output/playwright/`。
+
+## 个人文档模板
+
+`templates.js` 使用独立浏览器上下文，在 4173 检查模板保存、默认与空白选择、完整格式复制、原文档与模板独立、重命名、更新、删除、刷新保留、文件库入口及手机布局。登录、账号隔离、多设备同步、备份导入导出、冲突合并在独立的 4175 测试服务上验证。必须按本页第一节启动隔离数据目录，不能将 4175 指向真实用户数据库。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=templates-check open http://127.0.0.1:4173/index.html
+npx --yes --package @playwright/cli playwright-cli -s=templates-check run-code --filename tests/browser/templates.js
+```
+
+脚本会在隔离服务中创建测试账号；测试管理员使用本页第一节的 `deployment_admin`。截图写入 `output/playwright/`。

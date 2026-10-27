@@ -15,7 +15,7 @@
     {group:'常规',name:'打开 / 关闭快捷键帮助',keys:[['Mod','Alt','/']],codes:['Slash'],alt:true,shift:null,run:()=>showPanel(panel.hidden)},
     {group:'常规',name:'保存并同步文档',keys:[['Mod','S']],codes:['KeyS'],run:()=>{noteApp.save();if(window.noteCloud?.getState().user)noteCloud.sync();else noteApp.toast('已保存到本机');}},
     {group:'常规',name:'打开文件库',keys:[['Mod','Alt','O']],codes:['KeyO'],alt:true,run:()=>$('#libraryToggle').click()},
-    {group:'常规',name:'新建空白文档',keys:[['Mod','Alt','N']],codes:['KeyN'],alt:true,run:()=>$('#newBtn').click()},
+    {group:'常规',name:'新建文档 / 选择模板',keys:[['Mod','Alt','N']],codes:['KeyN'],alt:true,run:()=>$('#newBtn').click()},
     {group:'常规',name:'切换编辑 / 预览',keys:[['Mod','Alt','P']],codes:['KeyP'],alt:true,run:()=>$('[data-view="'+(document.body.classList.contains('preview-mode')?'edit':'preview')+'"]').click()},
     {group:'常规',name:'查找圣经经文',keys:[['Mod','Alt','B']],codes:['KeyB'],alt:true,run:()=>$('#bibleToolbarOpen').click()},
     {group:'常规',name:'撤销',keys:[['Mod','Z']],codes:['KeyZ'],editing:true,run:command('format','undo')},

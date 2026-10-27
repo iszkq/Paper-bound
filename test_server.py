@@ -79,6 +79,24 @@ class ServerTests(unittest.TestCase):
             (root / 'example.js').unlink()
             self.assertEqual(server.release_info(root)['changedFiles'], ['example.js'])
 
+    def test_template_validation_and_legacy_libraries(self):
+        legacy = {'folders': [], 'documents': [{'id': 'doc', 'title': '旧文档', 'data': {}}], 'activeId': 'doc'}
+        server.validate_library(legacy)
+        valid = {**legacy, 'templates': [{'id': 'tpl', 'name': '阅读模板', 'data': {'title': '阅读记录'}}], 'defaultTemplateId': 'tpl'}
+        server.validate_library(valid)
+        invalid = [
+            {**valid, 'templates': {}},
+            {**valid, 'templates': valid['templates'] * 2},
+            {**valid, 'templates': [{'id': 'tpl', 'name': '', 'data': {}}]},
+            {**valid, 'templates': [{'id': 'tpl', 'name': 'a' * 81, 'data': {}}]},
+            {**valid, 'templates': [{'id': 'tpl', 'name': '模板', 'data': []}]},
+            {**valid, 'defaultTemplateId': 'missing'},
+            {**valid, 'defaultTemplateId': None},
+        ]
+        for index, library in enumerate(invalid):
+            with self.subTest(case=index), self.assertRaises(ValueError):
+                server.validate_library(library)
+
     def test_accounts_sync_isolation_conflicts_and_paths(self):
         a, b, second, guest = (self.client() for _ in range(4))
         admin = self.client()
@@ -129,7 +147,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request(second, '/api/login', 'POST', {'username': 'reader_a', 'password': 'Bad-password'})[0], 401)
         self.assertEqual(self.request(second, '/api/login', 'POST', {'username': 'reader_a', 'password': 'Password-123'})[0], 200)
         self.assertEqual(self.request(second, '/api/session')[1]['user']['role'], 'user')
-        library = {'folders': [{'id': 'folder', 'name': '阅读', 'parentId': ''}], 'documents': [{'id': 'doc', 'title': '用户 A 的笔记', 'folderId': 'folder', 'data': {'title': '用户 A 的笔记', 'paragraphs': [{'html': '独立存档'}]}}], 'activeId': 'doc'}
+        library = {'folders': [{'id': 'folder', 'name': '阅读', 'parentId': ''}], 'documents': [{'id': 'doc', 'title': '用户 A 的笔记', 'folderId': 'folder', 'data': {'title': '用户 A 的笔记', 'paragraphs': [{'html': '独立存档'}]}}], 'activeId': 'doc', 'templates': [{'id': 'template', 'name': '用户 A 的模板', 'data': {'title': '固定标题', 'author': '固定作者', 'paragraphs': [{'html': '<b>保留格式</b>', 'noteHtml': '模板分析'}]}}], 'defaultTemplateId': 'template'}
         self.assertEqual(self.request(a, '/api/library', 'PUT', {'revision': 0, 'library': library})[0], 200)
         self.assertEqual(self.request(second, '/api/library')[1]['library'], library)
         self.assertIsNone(self.request(b, '/api/library')[1]['library'])
@@ -137,6 +155,9 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request(a, '/api/library', 'PUT', {'revision': 1, 'library': library}, {'Origin': 'https://wrong.example'})[0], 403)
         broken = copy.deepcopy(library)
         broken['folders'][0]['parentId'] = 'folder'
+        self.assertEqual(self.request(a, '/api/library', 'PUT', {'revision': 1, 'library': broken})[0], 400)
+        broken = copy.deepcopy(library)
+        broken['defaultTemplateId'] = 'missing'
         self.assertEqual(self.request(a, '/api/library', 'PUT', {'revision': 1, 'library': broken})[0], 400)
         # Concurrent writes share one expected revision: only one can commit.
         statuses = []

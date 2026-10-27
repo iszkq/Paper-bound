@@ -48,12 +48,17 @@
   const newNote=()=>normalize({...documentDefaults,paragraphs:[{}]});
   function guideDocument(){return {id:noteRuntime.uuid(),title:'使用说明 · 从这里开始',folderId:'',kind:'guide',data:normalize({...documentDefaults,title:'使用说明 · 从这里开始',blocks:[{title:'欢迎使用纸间',html:'<p>把原文和自己的思考放在一起，慢慢读，也慢慢写。这份说明可以自由修改，或在文件库中删除。</p>'}],paragraphs:[
     {text:'一、打开文件库\n点击顶部「文件库」，可以新建文件夹、打开已有文件夹，也可以直接新建文档。点击文档名称即可打开，编辑中的内容会自动保存在本机。',note:'可以先新建一个文件夹，例如「阅读笔记」或「查经记录」。文档右侧的「⋯」支持重命名、移动、复制和删除。'},
-    {text:'二、开始一份新文档\n新建文档会保留一组默认的作者、来源、日期、日期框标题、主题和右侧刊头。正文和分析从空白开始。',note:'这些默认信息都能直接点击修改。左侧写文段，右侧写对应分析；需要更多内容时，点击「添加下一段」。'},
+    {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
     {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。列表可以从光标位置插入。',note:'文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
     {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。还可以导入 TXT、Markdown 和 HTML 文章。'},
     {text:'五、登录与同步\n登录后，文档和文件夹按账号保存在服务端，并自动同步。未登录时只保存在本机。',note:'网络中断时，修改先保存在本机，重新连接后继续同步。遇到多端冲突可保留两个版本。旧的本机文档可在账号设置中导入，仍建议定期下载备份。'}]})};}
   function blankLibrary(){const old=session===GUEST?readJson(KEY,null):null,guide=guideDocument(),docs=[guide];if(old)docs.push({id:noteRuntime.uuid(),title:old.title||'阅读札记',folderId:'',data:normalize(old)});return {folders:[],documents:docs,activeId:old?docs[1].id:guide.id,guideVersion:1};}
-  function readLibrary(){const key='zhijian-library-v1:'+session,stored=readJson(key,null);const lib=stored?.documents?.length?stored:blankLibrary();if(!lib.guideVersion){lib.documents.push(guideDocument());lib.guideVersion=1;}localStorage.setItem(key,JSON.stringify(lib));return lib;}
+  function normalizeTemplates(lib){
+    lib.templates=(Array.isArray(lib.templates)?lib.templates:[]).filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string'&&t.data&&typeof t.data==='object').map(t=>({...t,data:normalize(t.data)}));
+    lib.defaultTemplateId=lib.templates.some(t=>t.id===lib.defaultTemplateId)?lib.defaultTemplateId:'';
+    return lib;
+  }
+  function readLibrary(){const key='zhijian-library-v1:'+session,stored=readJson(key,null);const lib=normalizeTemplates(stored?.documents?.length?stored:blankLibrary());if(!lib.guideVersion){lib.documents.push(guideDocument());lib.guideVersion=1;}localStorage.setItem(key,JSON.stringify(lib));return lib;}
   let library=readLibrary(), activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;
   let data=normalize(activeDoc.data);
   let active=null, range=null, layout='handout', timer, toastTimer;
@@ -61,11 +66,31 @@
   function save(now=false){clearTimeout(timer);const write=()=>{try{activeDoc.data=data;activeDoc.title=data.title||activeDoc.title||'未命名笔记';localStorage.setItem('zhijian-library-v1:'+session,JSON.stringify(library));if(session===GUEST)localStorage.setItem(KEY,JSON.stringify(data));$('#saveText').textContent='已保存到本机';renderLibrary();document.dispatchEvent(new CustomEvent('notesaved',{detail:{session}}));}catch{$('#saveText').textContent='保存失败';toast('本机存储空间不足，修改暂未保存');}};if(now)write();else{$('#saveText').textContent='正在保存…';timer=setTimeout(write,250);}}
   function toast(s){clearTimeout(toastTimer);$('#toast').textContent=s;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),2200);}
   function renderLibrary(){document.dispatchEvent(new Event('libraryupdated'));}
-  function newDocument(folderId=''){save(true);const doc={id:noteRuntime.uuid(),title:'未命名笔记',folderId,data:newNote()};library.documents.push(doc);openDocument(doc.id);save(true);$('#titleInput').focus();}
+  function newDocument(folderId='',templateId=library.defaultTemplateId,title=null){
+    save(true);
+    const template=library.templates.find(t=>t.id===templateId);
+    if(templateId&&!template){toast('这个模板已不存在，请重新选择');return;}
+    const content=template?normalize(noteRuntime.clone(template.data)):newNote();
+    if(title!==null)content.title=String(title).trim().slice(0,160);
+    const doc={id:noteRuntime.uuid(),title:content.title||'未命名笔记',folderId,data:content};
+    library.documents.push(doc);openDocument(doc.id);save(true);$('#titleInput').focus();return doc;
+  }
+  function saveTemplate(name,id='',sourceId=activeDoc.id){
+    name=String(name).trim().slice(0,80);if(!name){toast('请填写模板名称');return;}
+    save(true);const source=library.documents.find(d=>d.id===sourceId);if(!source){toast('原文档已不存在');return;}
+    let template=library.templates.find(t=>t.id===id);
+    if(id&&!template){toast('这个模板已不存在');return;}
+    if(!template){if(library.templates.length>=1000){toast('模板数量已达上限，请先清理不需要的模板');return;}template={id:noteRuntime.uuid(),name};library.templates.push(template);}
+    Object.assign(template,{name,data:normalize(noteRuntime.clone(source.data)),updatedAt:Date.now()});
+    save(true);return template;
+  }
+  function renameTemplate(id,name){const template=library.templates.find(t=>t.id===id);name=String(name).trim().slice(0,80);if(!template||!name)return;Object.assign(template,{name,updatedAt:Date.now()});save(true);}
+  function deleteTemplate(id){library.templates=library.templates.filter(t=>t.id!==id);if(library.defaultTemplateId===id)library.defaultTemplateId='';save(true);}
+  function setDefaultTemplate(id){if(id&&!library.templates.some(t=>t.id===id))return;library.defaultTemplateId=id;save(true);}
   function openDocument(id){const doc=library.documents.find(x=>x.id===id);if(!doc)return;save(true);activeDoc=doc;library.activeId=id;data=normalize(doc.data);render();save(true);}
   function switchUser(id){save(true);session=id;localStorage.setItem(SESSION_KEY,id);library=readLibrary();activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;data=normalize(activeDoc.data);render();save(true);}
-  function replaceLibrary(next){clearTimeout(timer);library=noteRuntime.clone(next);library.documents=library.documents.map(d=>({...d,data:normalize(d.data)}));activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;data=normalize(activeDoc.data);render();save(true);}
-  window.noteApp={replaceLibrary,getState:()=>({session,library,activeDoc,data}),save:()=>save(true),newDocument,openDocument,switchUser,toast,normalize,updateLibrary:()=>save(true)};
+  function replaceLibrary(next){clearTimeout(timer);library=normalizeTemplates(noteRuntime.clone(next));library.documents=library.documents.map(d=>({...d,data:normalize(d.data)}));activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;data=normalize(activeDoc.data);render();save(true);}
+  window.noteApp={replaceLibrary,getState:()=>({session,library,activeDoc,data}),save:()=>save(true),newDocument,requestNewDocument:newDocument,saveTemplate,renameTemplate,deleteTemplate,setDefaultTemplate,openDocument,switchUser,toast,normalize,updateLibrary:()=>save(true)};
   function drawBlocks(){for(const pos of ['top','bottom']){const group=data.blocks.map((b,i)=>({b,i})).filter(x=>x.b.position===pos);$('#'+pos+'BlockEditors').innerHTML=group.map((x,n)=>'<section class="block-editor" data-block-index="'+x.i+'"><div class="block-editor-head"><input class="block-title-input" data-block-field="title" value="'+esc(x.b.title)+'" aria-label="栏目名称" placeholder="栏目名称"><select class="block-position" data-block-field="position" aria-label="栏目位置"><option value="top" '+(pos==='top'?'selected':'')+'>文前</option><option value="bottom" '+(pos==='bottom'?'selected':'')+'>文后</option></select><button class="small-icon-btn" data-action="up" '+(!n?'disabled':'')+' aria-label="上移栏目">↑</button><button class="small-icon-btn" data-action="down" '+(n===group.length-1?'disabled':'')+' aria-label="下移栏目">↓</button><button class="small-icon-btn" data-action="block-delete" aria-label="删除栏目">×</button></div><div class="rich-editor block-content-input" contenteditable="true" data-block-field="html" data-placeholder="写下'+(pos==='bottom'?'总结、收获或延伸思考':'概要、背景或要点')+'…" role="textbox" aria-multiline="true" aria-label="'+esc(x.b.title)+' 内容">'+x.b.html+'</div></section>').join('');}}
   function paper(){applyDocumentFont();const blocks=pos=>data.blocks.filter(b=>b.position===pos).map(b=>'<section class="paper-custom-block '+(pos==='bottom'?'bottom-block':'')+'"><h2>'+esc(b.title)+'</h2><div>'+b.html+'</div></section>').join('');const rows=data.paragraphs.map(p=>'<section class="content-pair"><div class="content-pair-main"><div class="paper-paragraph">'+p.html+'</div></div><div class="content-pair-note"><div class="paper-note-copy">'+p.noteHtml+'</div></div></section>').join('');let head;if(layout==='table')head='<header class="paper-table-header"><h1 class="paper-table-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-table-meta"><span>作者：'+esc(data.author)+'</span><span>来源：'+esc(data.source)+'</span><span>'+esc(data.date)+'</span></div></header>';else head='<header class="paper-header"><div class="paper-date">'+esc(data.date||'日期未填写')+'<strong>'+esc(data.dateHeading)+'</strong>'+esc(data.topic)+'</div><div class="paper-title-wrap"><h1 class="paper-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-byline"><span>作者：'+esc(data.author||'未填写')+'</span><span>来源：'+esc(data.source||'未填写')+'</span></div></div><div class="paper-brand">'+esc(data.masthead)+'</div></header>';const bottom=blocks('bottom');$('#paper').classList.toggle('table-layout',layout==='table');$('#paper').innerHTML=head+blocks('top')+'<div class="paper-columns-head"><span>文段</span><span>分析</span></div><div class="paper-content-pairs">'+rows+'</div>'+(bottom?'<section class="paper-endnotes" aria-label="文末总结与补充">'+bottom+'</section>':'');}
   function render(){active=null;range=null;syncToolbar();$('#fontSizePicker').value='';Object.entries(fields).forEach(([id,key])=>$('#'+id).value=data[key]||'');$('#panelCount').textContent='共 '+data.paragraphs.length+' 段';$('#articleList').innerHTML=data.paragraphs.map((p,i)=>'<article class="edit-pair" data-index="'+i+'"><section class="edit-cell"><div class="paragraph-top"><span class="para-number">文段 '+String(i+1).padStart(2,'0')+'</span><button class="delete-para" data-action="delete" aria-label="删除第 '+(i+1)+' 段">×</button></div><div class="rich-editor paragraph-text" contenteditable="true" data-field="html" data-placeholder="写下这一段正文…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段正文">'+p.html+'</div></section><section class="edit-cell"><div class="paragraph-top"><span class="para-number">对应分析 '+String(i+1).padStart(2,'0')+'</span></div><div class="rich-editor annotation-text" contenteditable="true" data-field="noteHtml" data-placeholder="写下这一段的分析、思考或批注…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段分析">'+p.noteHtml+'</div></section></article>').join('');drawBlocks();paper();}
@@ -187,7 +212,7 @@
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus();});
   window.noteEditor={remember,format,textType,insertList,adjustFontSize,wave:()=>style({textDecorationLine:'underline',textDecorationStyle:'wavy',textDecorationColor:'#b73530',textDecorationThickness:'2px',textUnderlineOffset:'4px'}),resetSize:()=>style({}, {'data-default-size':'true'})};
   $('#addBtn').addEventListener('click',addParagraph);$('#addBottom').addEventListener('click',addParagraph);$('#printBtn').addEventListener('click',()=>{document.body.classList.add('preview-mode');window.print();});$('#printPreviewBtn').addEventListener('click',()=>window.print());
-  $('#newBtn').addEventListener('click',()=>newDocument(activeDoc.folderId));$('#resetBtn').addEventListener('click',()=>{if(!confirm('恢复示例内容？当前笔记会被替换。'))return;data=normalize(sample);render();save();toast('已恢复示例内容');});
+  $('#newBtn').addEventListener('click',()=>window.noteApp.requestNewDocument(activeDoc.folderId));$('#resetBtn').addEventListener('click',()=>{if(!confirm('恢复示例内容？当前笔记会被替换。'))return;data=normalize(sample);render();save();toast('已恢复示例内容');});
   $('#importBtn').addEventListener('click',()=>$('#importFile').click());$('#importFile').addEventListener('change',async e=>{
     const f=e.target.files?.[0];if(!f)return;
     try{

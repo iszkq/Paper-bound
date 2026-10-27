@@ -1,0 +1,73 @@
+async page => {
+  const check=(value,message)=>{if(!value)throw Error(message);};
+  const browser=page.context().browser(),contexts=[],errors=[];
+  const newContext=async()=>{const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);return context;};
+  const open=async(context,base)=>{const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'/index.html');await p.waitForFunction(()=>window.noteCloud);await p.evaluate(()=>noteCloud.ready);return p;};
+  const synced=async p=>{await p.evaluate(()=>noteCloud.sync());await p.waitForFunction(()=>!noteCloud.getState().dirty&&!noteCloud.getState().busy&&!noteCloud.getState().conflict);};
+  try {
+    const guest=await newContext(),p=await open(guest,'http://127.0.0.1:4173');
+    await p.locator('#newBtn').click();await p.locator('#titleInput').fill('每周读经记录');await p.locator('#authorInput').fill('模板作者');await p.locator('#mastheadInput').fill('我的读经札记');
+    await p.locator('.paragraph-text').first().fill('经文与观察');await p.locator('.paragraph-text').first().press('ControlOrMeta+A');await p.locator('.paragraph-text').first().press('ControlOrMeta+Shift+U');
+    await p.locator('.annotation-text').first().fill('思考与应用');await p.locator('#fontFamilyPicker').selectOption('KaiTiGB2312');
+    await p.locator('[data-add-block=top]').click();await p.locator('#topBlockEditors .block-title-input').fill('本周主题');await p.locator('#topBlockEditors .rich-editor').fill('预设提纲');
+    await p.locator('[data-add-block=bottom]').click();await p.locator('#bottomBlockEditors .block-title-input').fill('祷告与应用');await p.locator('#bottomBlockEditors .rich-editor').fill('总结提示');
+    await p.locator('#templateOpen').click();await p.locator('#saveCurrentTemplate').click();await p.locator('#templateName').fill('每周查经模板');await p.locator('#saveTemplateForm button[type=submit]').click();
+    const saved=await p.evaluate(()=>({template:noteRuntime.clone(noteApp.getState().library.templates[0]),sourceId:noteApp.getState().activeDoc.id,defaultId:noteApp.getState().library.defaultTemplateId}));
+    check(saved.defaultId===saved.template.id,'First template was not set as default');
+    await p.locator('#newBtn').click();check(await p.locator('#newTemplatePicker').inputValue()===saved.template.id,'New dialog did not preselect default template');
+    check(await p.locator('#newTemplateTitle').inputValue()==='每周读经记录','Template title was not prefilled');
+    await p.screenshot({path:'output/playwright/template-new-document.png'});
+    await p.locator('#newFromTemplateForm button[type=submit]').click();
+    check(await p.evaluate(template=>JSON.stringify(noteApp.getState().data)===JSON.stringify(template.data),saved.template),'Template content or formatting was lost');
+    check(await p.evaluate(id=>noteApp.getState().activeDoc.id!==id,saved.sourceId),'New document reused source ID');
+    await p.locator('.paragraph-text').first().fill('新文档的独立内容');await p.evaluate(()=>noteApp.save());
+    check(await p.evaluate(template=>JSON.stringify(noteApp.getState().library.templates[0].data)===JSON.stringify(template.data),saved.template),'Editing copy changed the template');
+    check(await p.evaluate(({sourceId,template})=>JSON.stringify(noteApp.getState().library.documents.find(d=>d.id===sourceId).data)===JSON.stringify(template.data),saved),'Editing copy changed source document');
+    await p.locator('#newBtn').click();await p.locator('#newBlankDocument').click();check(await p.locator('.paragraph-text').first().innerText()==='','Blank option used default template');
+    await p.locator('#templateOpen').click();await p.locator('#renameTemplate').click();await p.locator('#renameTemplateName').fill('固定信息模板');await p.locator('#renameTemplateForm button').click();
+    check((await p.locator('#manageTemplatePicker').innerText()).includes('固定信息模板'),'Template rename failed');
+    await p.locator('#defaultTemplate').click();check(await p.evaluate(()=>noteApp.getState().library.defaultTemplateId)==='','Default was not cleared');
+    await p.locator('#defaultTemplate').click();
+    await p.locator('#actionDialog .dialog-close-row button').click();await p.locator('#titleInput').fill('更新后的固定标题');await p.locator('#authorInput').fill('更新后的作者');
+    await p.locator('#templateOpen').click();let dialogs=0;p.once('dialog',d=>{dialogs++;return d.accept();});await p.locator('#overwriteTemplate').click();check(dialogs===1,'Template overwrite confirmation repeated');
+    await p.locator('#useTemplate').click();check(await p.locator('#titleInput').inputValue()==='更新后的固定标题','Template update was not used');check(await p.locator('#authorInput').inputValue()==='更新后的作者','Updated metadata missing');
+    await p.evaluate(()=>noteApp.save());await p.reload();await p.waitForFunction(()=>window.noteCloud);await p.evaluate(()=>noteCloud.ready);
+    check(await p.evaluate(()=>noteApp.getState().library.templates.length)===1,'Template did not survive reload');
+    check(await p.evaluate(()=>!!noteApp.getState().library.defaultTemplateId),'Default did not survive reload');
+    await p.locator('#libraryToggle').click();await p.locator('#newDocumentBtn').click();check(await p.locator('#newTemplatePicker').isVisible(),'Library new document bypassed template picker');
+    await p.locator('#actionDialog .dialog-close-row button').click();await p.locator('#templateOpen').click();await p.setViewportSize({width:390,height:844});
+    check(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Template toolbar caused mobile overflow');
+    const bounds=await p.locator('#actionDialog').boundingBox();check(bounds.x>=0&&bounds.x+bounds.width<=390,'Template dialog exceeds mobile viewport');await p.screenshot({path:'output/playwright/template-manager-mobile.png'});
+    const docsBefore=await p.evaluate(()=>noteApp.getState().library.documents.length);p.once('dialog',d=>d.accept());await p.locator('#deleteTemplate').click();
+    check(await p.evaluate(()=>noteApp.getState().library.templates.length)===0,'Template delete failed');check(await p.evaluate(()=>noteApp.getState().library.documents.length)===docsBefore,'Deleting template deleted documents');
+    check(await p.evaluate(()=>noteApp.getState().library.defaultTemplateId)==='','Deleted default template still referenced');
+
+    // All account tests use the dedicated test service, never the user's database.
+    const base='http://127.0.0.1:4175',admin=await newContext();
+    if((await (await admin.request.get(base+'/api/setup')).json()).required)check((await admin.request.post(base+'/api/setup',{data:{username:'deployment_admin',password:'Deploy-check-12345'}})).ok(),'Test server setup failed');
+    else check((await admin.request.post(base+'/api/login',{data:{username:'deployment_admin',password:'Deploy-check-12345'}})).ok(),'Test admin login failed');
+    const registrationCode=(await (await admin.request.get(base+'/api/admin/settings')).json()).registrationCode;
+    const suffix=Date.now(),password='Template-test-12345',a=await newContext(),b=await newContext(),username='tpl_a_'+suffix;
+    for(const [context,name] of [[a,username],[b,'tpl_b_'+suffix]])check((await context.request.post(base+'/api/register',{data:{username:name,password,registrationCode}})).ok(),'Test account creation failed');
+    const pa=await open(a,base),pb=await open(b,base);
+    await pa.locator('#titleInput').fill('云端模板标题');await pa.locator('#authorInput').fill('账号 A');await pa.locator('.paragraph-text').first().fill('云端预设正文');
+    const templateId=await pa.evaluate(()=>{const t=noteApp.saveTemplate('个人云模板');noteApp.setDefaultTemplate(t.id);return t.id;});await synced(pa);
+    check(await pb.evaluate(()=>noteApp.getState().library.templates.length)===0,'Account B saw account A templates');
+    const a2=await newContext();check((await a2.request.post(base+'/api/login',{data:{username,password}})).ok(),'Second device login failed');const pa2=await open(a2,base);
+    check(await pa2.evaluate(()=>noteApp.getState().library.templates[0].name)==='个人云模板','Template missing on second device');
+    await pa2.locator('#newBtn').click();check(await pa2.locator('#newTemplatePicker').inputValue()===templateId,'Default template did not sync');await pa2.locator('#newFromTemplateForm button[type=submit]').click();check(await pa2.locator('#authorInput').inputValue()==='账号 A','Second device did not reuse metadata');await synced(pa2);
+    const backup=(await (await a.request.get(base+'/api/library')).json()).library;
+    await pa.locator('#accountOpen').click();const [download]=await Promise.all([pa.waitForEvent('download'),pa.locator('#backupExport').click()]);check(await download.failure()===null,'Backup export failed');
+    await pb.locator('#accountOpen').click();await pb.locator('#backupFile').setInputFiles({name:'文档与模板备份.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({version:1,library:backup}))});
+    await pb.waitForFunction(()=>noteApp.getState().library.templates.length===1);
+    const imported=await pb.evaluate(()=>({templates:noteApp.getState().library.templates,defaultId:noteApp.getState().library.defaultTemplateId}));check(imported.templates.length===1&&imported.templates[0].id!==templateId,'Imported template ID was not remapped');check(imported.defaultId===imported.templates[0].id,'Imported default template ID was not remapped');await synced(pb);
+    await pa.reload();await pa.waitForFunction(()=>window.noteCloud);await pa.evaluate(()=>noteCloud.ready);await pa2.reload();await pa2.waitForFunction(()=>window.noteCloud);await pa2.evaluate(()=>noteCloud.ready);
+    await pa.locator('#authorInput').fill('设备一修改');await pa.evaluate(id=>noteApp.saveTemplate('个人云模板',id),templateId);await synced(pa);
+    await pa2.locator('#authorInput').fill('设备二修改');await pa2.evaluate(id=>noteApp.saveTemplate('个人云模板',id),templateId);await pa2.evaluate(()=>noteCloud.sync());
+    await pa2.waitForFunction(()=>noteCloud.getState().conflict);await pa2.locator('#syncStatusBtn').click();await pa2.locator('#mergeConflict').click();await synced(pa2);
+    const merged=(await (await a.request.get(base+'/api/library')).json()).library;
+    check(merged.templates.length===2,'Template conflict did not preserve both versions');check(merged.templates.some(t=>t.data.author==='设备一修改')&&merged.templates.some(t=>t.data.author==='设备二修改'),'Template conflict lost a device version');
+    check(!errors.length,'Browser errors: '+errors.join('; '));
+    return {passed:true,saveAndReuse:true,independentCopies:true,defaultAndBlank:true,renameUpdateDelete:true,reload:true,accountIsolation:true,multiDevice:true,backupImportExport:true,conflictPreservesBoth:true,mobile:true,errors};
+  } finally {for(const context of contexts)await context.close();}
+}

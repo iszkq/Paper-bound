@@ -134,6 +134,19 @@ def validate_library(lib):
             raise ValueError('文档名称格式不正确。')
     if lib.get('activeId') not in ids:
         raise ValueError('当前文档不存在。')
+    templates = lib.get('templates', [])
+    if not isinstance(templates, list) or len(templates) > 1000:
+        raise ValueError('模板数量或格式不正确。')
+    template_ids = set()
+    for template in templates:
+        if not isinstance(template, dict) or not valid_id(template.get('id')) or template['id'] in template_ids:
+            raise ValueError('模板编号不正确或重复。')
+        if not isinstance(template.get('name'), str) or not template['name'].strip() or len(template['name']) > 80 or not isinstance(template.get('data'), dict):
+            raise ValueError('模板名称或内容不正确。')
+        template_ids.add(template['id'])
+    default_template = lib.get('defaultTemplateId', '')
+    if not isinstance(default_template, str) or default_template and default_template not in template_ids:
+        raise ValueError('默认模板不存在。')
 
 
 class Handler(SimpleHTTPRequestHandler):

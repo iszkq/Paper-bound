@@ -1,5 +1,23 @@
 # 不使用 Docker 部署（1Panel / 内网 IP / FRP）
 
+## 安装后的文件位置
+
+以下是 `bash install.sh` 自动安装后的实际位置，不取决于 ZIP 上传到哪里：
+
+| 内容 | 位置 |
+| --- | --- |
+| 程序、页面、字体与经文数据 | `/opt/paper-bound/` |
+| 账号、文档、文件夹、个人模板与设置 | `/var/lib/paper-bound/notes.sqlite3` |
+| 每次更新前的数据库备份 | `/var/lib/paper-bound/backups/` |
+| 服务配置（包含访问端口） | `/etc/systemd/system/paper-bound.service` |
+| 运行日志 | `journalctl -u paper-bound` 查看 |
+
+文档和模板按账号保存在 SQLite 数据库中，不是每份文档对应一个服务器文件。未登录时的文档、模板只存在当前浏览器本机存储中，不会上传。
+
+安装器会把程序复制到 `/opt/paper-bound` 再运行。确认安装成功后，上传 ZIP 和临时解压目录可以清理，但不要删除上述程序、数据和备份目录；若解压位置本身就是 `/opt/paper-bound`，它就是运行目录，不能清理。后续新版也可以解压在任意临时目录，再运行安装器更新。
+
+如果没有用安装器，而是在解压目录直接运行 `sh start.sh`，程序就从那个目录运行，数据默认保存在该目录的 `storage/` 下（可通过 `NOTES_DATA_DIR` 自定义），此时不能删除解压目录。
+
 ## 最简单的安装方式
 
 1. 从 GitHub 下载完整 ZIP，上传服务器并解压。

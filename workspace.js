@@ -7,7 +7,7 @@
   let folder='all';
   const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
   const download=(blob,name)=>{const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);};
-  const newDialog=(title,html)=>{let d=$('#actionDialog');if(d)d.remove();d=document.createElement('dialog');d.id='actionDialog';d.className='app-dialog';d.innerHTML='<form method="dialog" class="dialog-close-row"><button class="small-icon-btn" aria-label="关闭">×</button></form><h2>'+esc(title)+'</h2>'+html;document.body.append(d);d.showModal();return d;};
+  const newDialog=(title,html)=>{let d=$('#actionDialog');if(d)d.remove();d=document.createElement('dialog');d.id='actionDialog';d.className='app-dialog';d.innerHTML='<form method="dialog" class="dialog-close-row"><button class="small-icon-btn" aria-label="关闭">×</button></form><h2>'+esc(title)+'</h2>'+html;document.body.append(d);closeOnBackdrop(d);d.showModal();return d;};
   function closeOnBackdrop(dialog){
     let pressedOutside=false;
     const outside=e=>{const r=dialog.getBoundingClientRect();return e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom);};
@@ -17,6 +17,41 @@
     dialog.addEventListener('close',()=>{pressedOutside=false;});
   }
   closeOnBackdrop($('#libraryDialog'));
+  const templateOptions=(templates,selected='')=>templates.map(t=>'<option value="'+esc(t.id)+'" '+(t.id===selected?'selected':'')+'>'+esc(t.name)+(t.id===app.getState().library.defaultTemplateId?'（默认）':'')+'</option>').join('');
+  const templateSummary=template=>{
+    if(!template)return '保留默认顶部信息，正文和分析从空白开始。';
+    const d=template.data;
+    return '文档标题：'+(d.title||'未命名笔记')+'；作者：'+(d.author||'未填写')+'；'+d.blocks.length+' 个栏目，'+d.paragraphs.length+' 组文段与分析。';
+  };
+  app.requestNewDocument=(folderId='')=>{
+    const {library}=app.getState();
+    if(!library.templates.length){$('[data-view="edit"]').click();app.newDocument(folderId,'');return;}
+    const selected=library.defaultTemplateId||'',initial=library.templates.find(t=>t.id===selected);
+    const d=newDialog('新建文档','<form id="newFromTemplateForm"><label>选择模板<select id="newTemplatePicker"><option value="">空白文档</option>'+templateOptions(library.templates,selected)+'</select></label><p class="dialog-copy" id="newTemplateSummary">'+esc(templateSummary(initial))+'</p><label>文档标题<input id="newTemplateTitle" maxlength="160" value="'+esc(initial?.data.title||'')+'" placeholder="未命名笔记"></label><div class="dialog-actions"><button type="submit" class="btn btn-primary">创建文档</button><button type="button" class="btn" id="newBlankDocument">直接新建空白</button></div></form>');
+    $('#newTemplatePicker').onchange=e=>{const template=app.getState().library.templates.find(t=>t.id===e.target.value);$('#newTemplateSummary').textContent=templateSummary(template);$('#newTemplateTitle').value=template?.data.title||'';};
+    $('#newFromTemplateForm').onsubmit=e=>{e.preventDefault();const templateId=$('#newTemplatePicker').value,title=$('#newTemplateTitle').value;d.close();$('[data-view="edit"]').click();app.newDocument(folderId,templateId,title);};
+    $('#newBlankDocument').onclick=()=>{d.close();$('[data-view="edit"]').click();app.newDocument(folderId,'');};
+  };
+  function saveDocumentAsTemplate(sourceId=app.getState().activeDoc.id){
+    app.save();const {library}=app.getState(),source=library.documents.find(doc=>doc.id===sourceId);if(!source)return;
+    const d=newDialog('将文档存为模板','<form id="saveTemplateForm"><p class="dialog-copy">保存「'+esc(source.title)+'」的标题、顶部信息、栏目、正文、分析和文字格式。以后新建时可以直接复用。</p><label>模板名称<input id="templateName" maxlength="80" required value="'+esc(source.title.slice(0,80))+'" autofocus></label><label class="template-default-option"><input type="checkbox" id="templateMakeDefault" '+(!library.defaultTemplateId?'checked':'')+'>设为新建文档的默认模板</label><div class="dialog-actions"><button class="btn btn-primary" type="submit">保存模板</button></div></form>');
+    $('#saveTemplateForm').onsubmit=e=>{e.preventDefault();const template=app.saveTemplate($('#templateName').value,'',sourceId);if(!template)return;if($('#templateMakeDefault').checked)app.setDefaultTemplate(template.id);d.close();app.toast('模板已保存，新建文档时可以选择');};
+  }
+  function manageTemplates(preferred=''){
+    const {library}=app.getState(),templates=library.templates,selected=templates.some(t=>t.id===preferred)?preferred:library.defaultTemplateId||templates[0]?.id||'';
+    const d=newDialog('文档模板','<p class="dialog-copy">将常用标题、顶部信息和内容存成模板。新文档是一份独立副本，修改后不会影响模板。</p><button class="btn btn-primary" id="saveCurrentTemplate">将当前文档存为模板</button>'+(templates.length?'<section class="template-manage-section"><label>已有模板<select id="manageTemplatePicker">'+templateOptions(templates,selected)+'</select></label><p class="dialog-copy" id="manageTemplateSummary"></p><p class="dialog-copy" id="defaultTemplateStatus" role="status"></p><div class="dialog-actions"><button class="btn btn-primary" id="useTemplate">用此模板新建</button><button class="btn" id="defaultTemplate"></button><button class="btn" id="renameTemplate">重命名</button><button class="btn" id="overwriteTemplate">用当前文档更新</button><button class="btn danger-button" id="deleteTemplate">删除模板</button></div></section>':'<p class="dialog-copy template-manage-section">还没有模板。先把当前文档调整成常用样式，再保存为模板。</p>'));
+    $('#saveCurrentTemplate').onclick=()=>saveDocumentAsTemplate();
+    if(!templates.length)return;
+    const current=()=>app.getState().library.templates.find(t=>t.id===$('#manageTemplatePicker').value);
+    function describe(){const t=current();$('#manageTemplateSummary').textContent=templateSummary(t);const isDefault=library.defaultTemplateId===t?.id;$('#defaultTemplate').textContent=isDefault?'取消默认':'设为默认';const activeDefault=library.templates.find(t=>t.id===library.defaultTemplateId);$('#defaultTemplateStatus').textContent=activeDefault?'默认模板：'+activeDefault.name:'默认从空白文档开始，可在新建时选择模板。';}
+    $('#manageTemplatePicker').onchange=describe;describe();
+    $('#useTemplate').onclick=()=>{const t=current();if(!t)return;const folderId=app.getState().activeDoc.folderId;d.close();$('[data-view="edit"]').click();app.newDocument(folderId,t.id);};
+    $('#defaultTemplate').onclick=()=>{const t=current();if(!t)return;app.setDefaultTemplate(library.defaultTemplateId===t.id?'':t.id);manageTemplates(t.id);};
+    $('#renameTemplate').onclick=()=>{const t=current();if(!t)return;const form=newDialog('重命名模板','<form id="renameTemplateForm"><label>模板名称<input id="renameTemplateName" maxlength="80" required value="'+esc(t.name)+'" autofocus></label><button class="btn btn-primary" type="submit">保存名称</button></form>');$('#renameTemplateForm').onsubmit=e=>{e.preventDefault();app.renameTemplate(t.id,$('#renameTemplateName').value);form.close();manageTemplates(t.id);};};
+    $('#overwriteTemplate').onclick=()=>{const t=current();if(!t||!confirm('用当前文档更新「'+t.name+'」？已创建的文档不会改变。'))return;app.saveTemplate(t.name,t.id);manageTemplates(t.id);app.toast('模板内容已更新');};
+    $('#deleteTemplate').onclick=()=>{const t=current();if(!t||!confirm('删除模板「'+t.name+'」？已经创建的文档会保留。'))return;app.deleteTemplate(t.id);manageTemplates();};
+  }
+  $('#templateOpen').onclick=()=>manageTemplates();
   function drawLibrary(){
     const {session,library,activeDoc}=app.getState(),user=read('zhijian-users-v1',[]).find(x=>x.id===session);
     const cloud=window.cloudAccount?.user;$('#accountLabel').textContent=cloud?.displayName||cloud?.username||user?.displayName||user?.username||'登录 / 注册';$('#libraryDialog').dataset.currentFolder=folder;
@@ -42,7 +77,7 @@
   const enterFolder=e=>{const b=e.target.closest('[data-folder]');if(b){folder=b.dataset.folder;$('#documentSearch').value='';drawLibrary();}};
   $('#folderTree').onclick=enterFolder;
   $('#childFolders').onclick=enterFolder;
-  $('#newDocumentBtn').onclick=()=>{closeLibrary();$('[data-view="edit"]').click();app.newDocument(folder==='all'?'':folder);};
+  $('#newDocumentBtn').onclick=()=>{closeLibrary();$('[data-view="edit"]').click();app.requestNewDocument(folder==='all'?'':folder);};
   $('#openFolderBtn').onclick=()=>{
     const {library}=app.getState();
     if(!library.folders.length){app.toast('还没有文件夹，请先新建一个');return;}
@@ -68,6 +103,7 @@
     const {library}=app.getState(),doc=library.documents.find(x=>x.id===menu.dataset.docMenu);
     const d=newDialog('管理笔记','<label>笔记名称<input id="docRename" value="'+esc(doc.title)+'" maxlength="160"></label><label>所在文件夹<select id="docFolder"><option value="">未分类</option>'+library.folders.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('')+'</select></label><div class="dialog-actions"><button id="docSave" class="btn btn-primary">保存</button><button id="docDuplicate" class="btn">复制笔记</button><button id="docDelete" class="btn danger-button">删除</button></div>');$('#docFolder').value=doc.folderId;
     $('#docSave').onclick=()=>{doc.title=$('#docRename').value.trim()||'未命名笔记';doc.folderId=$('#docFolder').value;doc.data.title=doc.title;if(doc.id===app.getState().activeDoc.id){app.getState().data.title=doc.title;$('#titleInput').value=doc.title;$('#titleInput').dispatchEvent(new Event('input',{bubbles:true}));}app.updateLibrary();d.close();};
+    const templateButton=document.createElement('button');templateButton.className='btn';templateButton.id='docSaveTemplate';templateButton.textContent='存为模板';d.querySelector('.dialog-actions').append(templateButton);templateButton.onclick=()=>{d.close();closeLibrary();saveDocumentAsTemplate(doc.id);};
     $('#docDuplicate').onclick=()=>{app.save();const copy=noteRuntime.clone(doc);copy.id=noteRuntime.uuid();copy.title+=' · 副本';copy.data.title=copy.title;library.documents.push(copy);app.openDocument(copy.id);d.close();};
     $('#docDelete').onclick=()=>{if(!confirm('删除这份笔记？此操作无法撤销。'))return;app.save();library.documents=library.documents.filter(x=>x.id!==doc.id);if(!library.documents.length)app.newDocument();else if(app.getState().activeDoc.id===doc.id)app.openDocument(library.documents[0].id);app.updateLibrary();d.close();};
   };

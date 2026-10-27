@@ -90,6 +90,7 @@ dialog::backdrop { background: rgb(25 29 32 / 30%); }
 .text-button { border: 0; background: transparent; padding: 14px 0 0; color: var(--red); font-size: 13px; }
 .form-error { color: var(--red); font-size: 13px; line-height: 1.7; }
 .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.template-manage-section { margin-top: var(--panel-space); padding-top: 8px; border-top: 1px solid var(--line); }
 .danger-button { color: var(--red); }
 .bible-dialog { width: min(880px, calc(100vw - 32px)); height: min(840px, 90vh); padding: 0; overflow: hidden; }
 .bible-dialog[open] { display: flex; flex-direction: column; }
