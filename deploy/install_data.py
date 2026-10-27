@@ -60,7 +60,7 @@ def validate(value, *, inspect=True):
             allowed = {'notes.sqlite3', 'notes.sqlite3-wal', 'notes.sqlite3-shm', 'backups'}
             for child in path.iterdir():
                 if child.name not in allowed or child.is_symlink():
-                    raise ValueError('请选择空文件夹或已有纸间数据文件夹，避免修改其他文件的权限。')
+                    raise ValueError('请选择空文件夹或已有纸间数据文件夹，避免修改其他文件的权限：' + str(child))
                 if (child.name == 'backups' and not child.is_dir()) or (child.name != 'backups' and not child.is_file()):
                     raise ValueError('数据文件夹结构异常：' + str(child))
     return value
@@ -91,6 +91,8 @@ def copy_database(source, target):
     try:
         with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True)) as incoming, closing(sqlite3.connect(str(temporary))) as outgoing:
             incoming.backup(outgoing)
+            # Keep each backup/migration self-contained before checking and renaming.
+            outgoing.execute('PRAGMA journal_mode=DELETE')
         inspect_database(temporary)
         temporary.chmod(0o600)
         if target.exists():

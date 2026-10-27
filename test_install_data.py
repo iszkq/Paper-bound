@@ -40,6 +40,7 @@ class InstallDataTests(unittest.TestCase):
             old.mkdir(); new.mkdir()
             database = old / 'notes.sqlite3'
             with closing(sqlite3.connect(str(database))) as db:
+                db.execute('PRAGMA journal_mode=WAL')
                 db.executescript("CREATE TABLE users(id TEXT); CREATE TABLE libraries(content TEXT); INSERT INTO users VALUES ('owner'); INSERT INTO libraries VALUES ('document and template');")
             original = database.read_bytes()
             install_data.prepare(old, new)
@@ -48,6 +49,8 @@ class InstallDataTests(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT content FROM libraries').fetchone()[0], 'document and template')
             self.assertTrue(list((new / 'backups').glob('notes-*.sqlite3')))
             self.assertTrue(list((old / 'backups').glob('notes-*.sqlite3')))
+            self.assertEqual({path.name for path in new.iterdir()}, {'notes.sqlite3', 'backups'})
+            self.assertTrue(all(path.suffix == '.sqlite3' for path in (new / 'backups').iterdir()))
             install_data.prepare(new, new)
             self.assertGreaterEqual(len(list((new / 'backups').glob('notes-*.sqlite3'))), 2)
             target_before = (new / 'notes.sqlite3').read_bytes()
