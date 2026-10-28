@@ -229,14 +229,23 @@
     }
     replaceEditorContents(clone,start,length);
   }
-  function replaceEditorContents(clone,start,length){
+  function replaceEditorContents(clone,start,length,caretMarker=null){
     clone.querySelectorAll('[data-format-operation]').forEach(el=>el.replaceWith(...el.childNodes));
     const selection=getSelection(),whole=document.createRange();whole.selectNodeContents(active);selection.removeAllRanges();selection.addRange(whole);
     // Chromium normalizes nested decorations during insertHTML. Insert an undoable
     // container first, then populate it to preserve untouched annotations exactly.
     document.execCommand('insertHTML',false,'<div data-format-operation="true">&#8203;</div>');
-    const operation=active.querySelector('[data-format-operation]');if(operation)operation.replaceChildren(...clone.childNodes);
-    if(length)selectTextOffsets(active,start,length);else setTextCaret(active,start);commit();
+    const operation=active.querySelector('[data-format-operation]');
+    if(operation){
+      operation.replaceChildren(...clone.childNodes);
+      // A native replacement can retain an old list shell around the operation.
+      // The clone already contains every paragraph, so keep exactly that tree.
+      if(caretMarker&&operation.parentElement!==active)active.replaceChildren(operation);
+    }
+    if(caretMarker?.isConnected){
+      const caret=document.createRange();caret.setStartBefore(caretMarker);caret.collapse(true);caretMarker.remove();selection.removeAllRanges();selection.addRange(caret);
+    }else if(length)selectTextOffsets(active,start,length);else setTextCaret(active,start);
+    commit();
   }
   function adjustFontSize(direction){
     if(!restore())return;
@@ -284,35 +293,52 @@
     if(!paragraph.hasChildNodes())paragraph.append(document.createElement('br'));
     parent.insertBefore(paragraph,list);nested.forEach(child=>parent.insertBefore(child,list));item.remove();if(!list.children.length)list.remove();
   }
-  function convertCurrentParagraph(kind,start=1){
+  function currentParagraphRange(editor,caret){
+    const element=caret.startContainer.nodeType===Node.ELEMENT_NODE?caret.startContainer:caret.startContainer.parentElement;
+    let scope=element;
+    while(scope!==editor&&(!scope.matches('p,div,h1,h2,h3,h4,h5,h6,li')||scope.hasAttribute('data-format-operation')))scope=scope.parentElement;
+    const line=document.createRange();line.selectNodeContents(scope);
+    let previous=null,next=null;
+    for(const boundary of scope.querySelectorAll('br,p,div,h1,h2,h3,h4,h5,h6,ol,ul')){
+      if(boundary.hasAttribute('data-format-operation'))continue;
+      const candidate=document.createRange();candidate.selectNode(boundary);
+      const position=candidate.comparePoint(caret.startContainer,caret.startOffset);
+      if(position===1&&(!previous||candidate.compareBoundaryPoints(Range.END_TO_END,previous)>0))previous=candidate;
+      if(position===-1&&(!next||candidate.compareBoundaryPoints(Range.START_TO_START,next)<0))next=candidate;
+    }
+    if(previous)line.setStart(previous.endContainer,previous.endOffset);
+    if(next)line.setEnd(next.startContainer,next.startOffset);
+    return line;
+  }
+  function convertCurrentParagraph(kind,start=1,removeMarker=null){
     const sel=getSelection(),r=sel.getRangeAt(0),{start:caretOffset}=selectionOffsets(active,r),node=r.startContainer,clone=active.cloneNode(true);
     const pathTo=target=>{const path=[];for(let current=target;current!==active;current=current.parentNode)path.unshift(Array.prototype.indexOf.call(current.parentNode.childNodes,current));return path;};
     const followPath=(root,path)=>path.reduce((parent,index)=>parent.childNodes[index],root),mappedNode=followPath(clone,pathTo(node)),mappedRange=document.createRange();
     mappedRange.setStart(mappedNode,Math.min(r.startOffset,mappedNode.nodeType===Node.TEXT_NODE?mappedNode.length:mappedNode.childNodes.length));mappedRange.collapse(true);
-    const element=mappedNode.nodeType===Node.ELEMENT_NODE?mappedNode:mappedNode.parentElement;
-    const block=element?.closest('p,h1,h2,h3,h4,h5,h6');
-    const candidate=block&&active.contains(block)?followPath(clone,pathTo(block)):null;
+    if(removeMarker){
+      const remove=document.createRange();remove.setStart(followPath(clone,pathTo(removeMarker.startContainer)),removeMarker.startOffset);remove.setEnd(followPath(clone,pathTo(removeMarker.endContainer)),removeMarker.endOffset);
+      remove.deleteContents();mappedRange.setStart(remove.startContainer,remove.startOffset);mappedRange.collapse(true);
+    }
+    // A DOM marker preserves an empty item's position, which has no text offset.
+    const caretMarker=document.createElement('span');caretMarker.dataset.listCaret='true';mappedRange.insertNode(caretMarker);
+    const element=caretMarker.parentElement,block=element?.closest('p,h1,h2,h3,h4,h5,h6');
+    const candidate=block&&clone.contains(block)?block:null;
     let list, item;
     if(candidate){
       list=document.createElement(kind==='ordered'?'ol':'ul');item=document.createElement('li');
       while(candidate.firstChild)item.append(candidate.firstChild);
-      if(!item.hasChildNodes())item.append(document.createElement('br'));
+      if(!item.textContent&&!item.querySelector('br'))item.append(document.createElement('br'));
       list.append(item);candidate.replaceWith(list);
     }else{
-      const top=mappedNode===clone?clone:(()=>{let current=mappedNode.nodeType===Node.ELEMENT_NODE?mappedNode:mappedNode.parentElement;while(current?.parentElement!==clone&&current!==clone)current=current.parentElement;return current||clone;})();
-      const scope=top===clone?clone:top,breaks=Array.from(scope.querySelectorAll('br'));
-      if(scope.tagName==='BR')breaks.unshift(scope);
-      let before=null,after=null;
-      for(const br of breaks){const brRange=document.createRange();brRange.selectNode(br);const position=brRange.comparePoint(mappedRange.startContainer,mappedRange.startOffset);if(position===1)before=br;else if(position===-1&&!after)after=br;}
-      const line=document.createRange();line.selectNodeContents(scope);if(before)line.setStartAfter(before);if(after)line.setEndBefore(after);
+      const markerRange=document.createRange();markerRange.setStartBefore(caretMarker);markerRange.collapse(true);
+      const line=currentParagraphRange(clone,markerRange);
       const contents=line.extractContents();list=document.createElement(kind==='ordered'?'ol':'ul');item=document.createElement('li');
-      if(contents.hasChildNodes())item.append(contents);else item.append(document.createElement('br'));
+      item.append(contents);if(!item.textContent&&!item.querySelector('br'))item.append(document.createElement('br'));
       list.append(item);line.insertNode(list);
-      if(scope!==clone&&!scope.textContent.trim()&&scope.querySelector('ol,ul'))scope.replaceWith(...scope.childNodes);
     }
     if(kind==='ordered'&&start!==1)list.start=start;
     if(kind==='task')list.dataset.task='true';
-    replaceEditorContents(clone,caretOffset,0);
+    replaceEditorContents(clone,caretOffset,0,caretMarker);
   }
   function currentListItem(){
     const selection=getSelection();if(!selection?.rangeCount)return null;
@@ -330,8 +356,7 @@
     const editor=event.target,selection=getSelection();if(!selection?.rangeCount||!selection.isCollapsed)return;
     const r=selection.getRangeAt(0);if(!editor.contains(r.commonAncestorContainer))return;
     const element=r.startContainer.nodeType===Node.ELEMENT_NODE?r.startContainer:r.startContainer.parentElement;
-    const block=element.closest('p,div,h1,h2,h3,h4,h5,h6,li');
-    const line=r.cloneRange();line.selectNodeContents(block&&editor.contains(block)?block:editor);line.setEnd(r.startContainer,r.startOffset);
+    const line=currentParagraphRange(editor,r);line.setEnd(r.startContainer,r.startOffset);
     // A legacy paragraph can contain BR-separated lines, so match only the
     // current logical line and refuse markers typed in the middle of prose.
     const fragment=line.cloneContents();fragment.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));
@@ -347,10 +372,10 @@
     if(node.nodeType!==Node.TEXT_NODE){node=node.childNodes[offset-1];while(node?.lastChild)node=node.lastChild;offset=node?.textContent.length||0;}
     let index=nodes.indexOf(node);if(index<0)return;
     while(remaining>offset&&index>0){remaining-=offset;node=nodes[--index];offset=node.length;}
-    const remove=r.cloneRange();remove.setStart(node,offset-remaining);selection.removeAllRanges();selection.addRange(remove);
-    document.execCommand('delete');
-    if(item?.isConnected&&item.parentElement.tagName==='OL')item.value=start;
-    else convertCurrentParagraph('ordered',start);
+    const remove=r.cloneRange();remove.setStart(node,offset-remaining);
+    if(item?.isConnected&&item.parentElement.tagName==='OL'){
+      selection.removeAllRanges();selection.addRange(remove);document.execCommand('delete');item.value=start;
+    }else convertCurrentParagraph('ordered',start,remove);
     commit();
   }
   document.addEventListener('beforeinput',autoOrderedList);

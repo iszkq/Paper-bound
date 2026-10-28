@@ -37,7 +37,7 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/formatting.js
 ```
 
-`lists.js` 在 4173 端口验证光标所在整段转换为各类列表、光标和内联格式保留、自定义起始编号、行首输入编号加空格创建列表、Tab／Shift+Tab 调整嵌套、Shift+Enter 插入不编号的说明、空列表项退出、撤销重做、保存刷新、讲义预览及手机工具栏。
+`lists.js` 在 4173 端口验证光标所在整段转换为各类列表、光标和内联格式保留、自定义起始编号、行首输入编号加空格创建列表、Tab／Shift+Tab 调整嵌套、Shift+Enter 插入不编号的说明、空列表项退出、撤销重做、保存刷新、讲义预览及手机工具栏。另用 Chromium 的组合输入协议验证空列表中输入中文，以及从子列表退出后输入 `2.` 加空格恢复一级列表；覆盖直接文本、DIV、P、BR 四种换行结构，检查文字和光标都在正确的列表项中。
 
 ```sh
 npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/lists.js

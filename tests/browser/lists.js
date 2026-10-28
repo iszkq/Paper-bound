@@ -7,11 +7,13 @@ async page => {
     await test.goto('http://127.0.0.1:4173/index.html');
     await test.waitForFunction(()=>window.noteCloud);
     await test.evaluate(()=>noteCloud.ready);
-    const editor=test.locator('.paragraph-text').first();
+    const editor=test.locator('.paragraph-text').first(),ime=await context.newCDPSession(test);
     async function seed(html){await editor.evaluate((el,html)=>{el.innerHTML=html;el.dispatchEvent(new InputEvent('input',{bubbles:true}));el.focus();const r=document.createRange();r.selectNodeContents(el);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);noteEditor.remember();},html);}
     async function caret(selector,offset){await editor.evaluate((el,{selector,offset})=>{const target=selector?el.querySelector(selector):el,walker=document.createTreeWalker(target,NodeFilter.SHOW_TEXT);let node,remaining=offset;while(walker.nextNode()){node=walker.currentNode;if(remaining<=node.length)break;remaining-=node.length;}const r=document.createRange();if(node)r.setStart(node,remaining);else r.selectNodeContents(target);r.collapse(true);el.focus();const s=getSelection();s.removeAllRanges();s.addRange(r);noteEditor.remember();},{selector,offset});}
     async function menu(kind){await test.locator('summary[aria-label="列表"]').click();await test.locator('[data-list="'+kind+'"]').click();}
     async function shape(){return editor.evaluate(el=>({html:el.innerHTML,text:el.textContent,items:el.querySelectorAll('li').length,levels:Array.from(el.querySelectorAll('li')).map(li=>{let depth=0;for(let p=li.parentElement;p&&el.contains(p);p=p.parentElement)if(p.matches('ol,ul'))depth++;return depth;})}));}
+    async function caretInItem(){return editor.evaluate(el=>{const node=getSelection().anchorNode,element=node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement;return !!element?.closest('li')&&el.contains(element);});}
+    async function compose(text){await ime.send('Input.imeSetComposition',{text:'chengdu',selectionStart:7,selectionEnd:7});await ime.send('Input.insertText',{text});}
 
     // Real toolbar interaction must wrap the whole paragraph, retaining the caret.
     stage='paragraph conversion';
@@ -38,7 +40,9 @@ async page => {
       await seed('');await editor.pressSequentially(start+'.');await editor.press('Space');
       const actual=await editor.evaluate(el=>({html:el.innerHTML,start:el.querySelector('ol')?.start,items:el.querySelectorAll('li').length}));
       check(actual.items===1&&actual.start===start,'Number plus space did not create the requested list: '+JSON.stringify(actual));
-      await test.keyboard.insertText('从指定编号开始');await editor.press('Enter');await test.keyboard.insertText('继续编号');
+      check(await caretInItem(),'Empty-list caret is outside the item');
+      await compose('从指定编号开始');check(await editor.locator('li').first().textContent()==='从指定编号开始','Chinese composition escaped the new list');
+      await editor.press('Enter');await test.keyboard.insertText('继续编号');
       check(await editor.locator('ol > li').count()===2,'Enter did not continue the list');
       check(!(await editor.textContent()).includes(start+'.'),'Typed marker was retained as literal text');
     }
@@ -49,6 +53,27 @@ async page => {
     await seed('标题<br>2.后续正文');await caret('',4);await editor.press('Space');
     check(await editor.evaluate(el=>el.querySelector('ol')?.start)===2,'Marker after BR did not create a list: '+await editor.evaluate(el=>el.innerHTML));
     results.push('typed markers and custom starts');
+    await seed('1.');await editor.press('Space');await editor.press('ControlOrMeta+Z');
+    check(await editor.textContent()==='1.'&&await editor.locator('ol').count()===0,'Undo did not restore the typed marker');
+    await editor.press('ControlOrMeta+Shift+Z');await compose('重做后继续输入');
+    check(await editor.locator('li').textContent()==='重做后继续输入','Chinese composition escaped the list after redo');
+
+    stage='continue root list after nested items';
+    const firstItem='<ol><li>第一点<ol><li>子项一</li><li>子项二</li></ol></li></ol>';
+    for(const suffix of ['2.','<div>2.</div>','<p>2.</p>','<br>2.']){
+      await seed(firstItem+suffix);await editor.press('Space');
+      check(await caretInItem(),'Continuing a root list did not place the caret inside its item: '+suffix);
+      await compose('第二点正文');
+      check(await editor.locator('li').filter({hasText:'第二点正文'}).count()===1,'Continuation text leaked outside the root item: '+await editor.innerHTML());
+      check((await shape()).levels.join(',')==='1,2,2,1','Continuation was nested under an old item: '+await editor.innerHTML());
+      check(await editor.locator('ol > li').filter({hasText:'第二点正文'}).count()===1,'Continuation created a separate nested root list: '+await editor.innerHTML());
+      check(await editor.locator('ol[start="2"]').count()===1,'Continuation did not retain the second root number');
+      check(!(await editor.textContent()).includes('2.'),'Root continuation retained the literal marker');
+    }
+    await seed(firstItem);await caret('ol ol li:last-child',3);await editor.press('Enter');await editor.press('Enter');await editor.press('Enter');
+    await editor.pressSequentially('2.');await editor.press('Space');check(await caretInItem(),'Enter-based exit did not recognize the next root marker');
+    await compose('返回一级后的内容');check(await editor.locator('li').filter({hasText:'返回一级后的内容'}).count()===1,'After exiting nesting, composition appeared above the list');
+    results.push('Chinese composition and root-list continuation');
 
     stage='nesting';await seed('<ol start="2"><li>第一项</li><li>第二项</li><li>第三项</li></ol>');
     await caret('li:nth-child(2)',3);await editor.press('Tab');
