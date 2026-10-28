@@ -35,9 +35,10 @@
       if(/^(baseline|sub|super)$/.test(st.verticalAlign))styles.push('vertical-align:'+st.verticalAlign);
       const task=tag==='UL'&&n.dataset.task==='true'?' data-task="true"':'', checked=tag==='LI'&&n.dataset.checked==='true'?' data-checked="true"':'';
       const defaultSize=tag==='SPAN'&&n.dataset.defaultSize==='true'?' data-default-size="true"':'';
+      const firstIndent=/^(P|DIV)$/.test(tag)&&/^(on|off)$/.test(n.dataset.firstIndent||'')?' data-first-indent="'+n.dataset.firstIndent+'"':'';
       const number=tag==='OL'?'start':tag==='LI'?'value':'',rawNumber=number&&n.getAttribute(number);
       const numbering=rawNumber&&/^-?\d{1,9}$/.test(rawNumber)?' '+number+'="'+Number(rawNumber)+'"':'';
-      return '<'+tag.toLowerCase()+task+checked+defaultSize+numbering+(styles.length?' style="'+styles.join(';')+'"':'')+'>'+kids+'</'+tag.toLowerCase()+'>';
+      return '<'+tag.toLowerCase()+task+checked+defaultSize+firstIndent+numbering+(styles.length?' style="'+styles.join(';')+'"':'')+'>'+kids+'</'+tag.toLowerCase()+'>';
     };
     return Array.from(doc.body.childNodes).map(walk).join('');
   }
@@ -54,7 +55,7 @@
   function guideDocument(){return {id:noteRuntime.uuid(),title:'使用说明 · 从这里开始',folderId:'',kind:'guide',data:normalize({...documentDefaults,title:'使用说明 · 从这里开始',blocks:[{title:'欢迎使用纸间',html:'<p>把原文和自己的思考放在一起，慢慢读，也慢慢写。这份说明可以自由修改，或在文件库中删除。</p>'}],paragraphs:[
     {text:'一、打开文件库\n点击顶部「文件库」，可以新建文件夹、打开已有文件夹，也可以直接新建文档。点击文档名称即可打开，编辑中的内容会自动保存在本机。',note:'可以先新建一个文件夹，例如「阅读笔记」或「查经记录」。文档右侧的「⋯」支持重命名、移动、复制和删除。'},
     {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可搜索并选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
-    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 减少一级缩进，Shift+Enter 插入不编号的说明。取消单项编号可用「列表 → 转为普通段落」，或 Ctrl+Shift+0；正文独立段落在预览中首行缩进两字符。选中来源文字后，单击格式刷刷一次，双击连续刷，Esc 退出。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
+    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 减少一级缩进，Shift+Enter 插入不编号的说明。取消单项编号可用「列表 → 转为普通段落」，或 Ctrl+Shift+0；正文独立段落在预览中首行缩进两字符，可用工具栏「首行缩进」按段关闭或恢复。选中来源文字后，单击格式刷刷一次，双击连续刷，Esc 退出。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
     {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。还可以导入 TXT、Markdown 和 HTML 文章。'},
     {text:'五、登录与同步\n登录后，文档和文件夹按账号保存在服务端，并自动同步。未登录时只保存在本机。',note:'网络中断时，修改先保存在本机，重新连接后继续同步。遇到多端冲突可保留两个版本。旧的本机文档可在账号设置中导入，仍建议定期下载备份。'}]})};}
   function blankLibrary(){const old=session===GUEST?readJson(KEY,null):null,guide=guideDocument(),docs=[guide];if(old)docs.push({id:noteRuntime.uuid(),title:old.title||'阅读札记',folderId:'',data:normalize(old)});return {folders:[],documents:docs,activeId:old?docs[1].id:guide.id,guideVersion:1};}
@@ -160,11 +161,18 @@
     }
     return '';
   }
+  function paragraphIndentEnabled(element,editor){
+    const setting=element.closest('[data-first-indent]');
+    return setting&&editor.contains(setting)?setting.dataset.firstIndent==='on':editor.matches('.paragraph-text');
+  }
   function syncToolbar(){
     if(painter){$('#formatHint').textContent=painter.locked?'格式刷已锁定：可连续刷选文字 · Esc 退出':'格式刷：刷选目标文字，单击可刷一个词 · Esc 取消';return;}
     // Native select controls keep their own focus while an option is being chosen.
     if(document.activeElement?.closest('.rich-toolbar'))return;
     const elements=active?.isConnected&&range?selectionElements(range,active):[];
+    const indent=$('#paragraphIndent'),element=elements[0];
+    indent.disabled=!element||!!element.closest('li,h1,h2,h3,h4,h5,h6');
+    indent.setAttribute('aria-pressed',String(!indent.disabled&&paragraphIndentEnabled(element,active)));
     const uniform=values=>new Set(values).size===1?values[0]:'mixed';
     const types=elements.map(el=>{const block=el.closest('h1,h2,h3,h4,h5,h6');return block&&active.contains(block)?block.tagName.toLowerCase():'p';});
     $('#textTypePicker').value=elements.length?uniform(types):'p';
@@ -186,6 +194,22 @@
   function commit(){active?.dispatchEvent(new InputEvent('input',{bubbles:true}));remember();}
   function format(cmd,val=null){if(!restore())return;document.execCommand('styleWithCSS',false,true);document.execCommand(cmd,false,val);commit();}
   function textType(tag){if(!/^(p|h[1-6])$/.test(tag)||!restore())return;if(tag==='p'&&currentListItem()){unwrapListItem(currentListItem());return;}document.execCommand('formatBlock',false,tag);commit();}
+  function toggleParagraphIndent(){
+    if(!restore())return;const r=getSelection().getRangeAt(0),element=selectionElements(r,active)[0];
+    if(element.closest('li,h1,h2,h3,h4,h5,h6'))return;
+    const enabled=!paragraphIndentEnabled(element,active),{start,length}=selectionOffsets(active,r),clone=active.cloneNode(true),path=[];
+    for(let node=r.startContainer;node!==active;node=node.parentNode)path.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes,node));
+    const node=path.reduce((parent,index)=>parent.childNodes[index],clone),mapped=document.createRange();mapped.setStart(node,r.startOffset);mapped.collapse(true);
+    const marker=document.createElement('span');marker.dataset.listCaret='true';mapped.insertNode(marker);
+    let block=marker.parentElement;
+    while(block!==clone&&(!block.matches('p,div')||block.hasAttribute('data-format-operation')))block=block.parentElement;
+    if(block===clone||block.querySelector('p,div,ol,ul')){
+      const at=document.createRange();at.setStartBefore(marker);at.collapse(true);const line=currentParagraphRange(clone,at),contents=line.extractContents();
+      block=document.createElement('p');block.append(contents);line.insertNode(block);
+    }
+    block.dataset.firstIndent=enabled?'on':'off';
+    if(length){marker.remove();replaceEditorContents(clone,start,length);}else replaceEditorContents(clone,start,0,marker);
+  }
   function applyDocumentFont(){const root=document.documentElement;root.toggleAttribute('data-document-font',!!data.fontFamily);if(data.fontFamily)root.style.setProperty('--document-font',data.fontFamily+', var(--font-reading)');else root.style.removeProperty('--document-font');$('#fontFamilyPicker').value=data.fontFamily;}
   function selectTextOffsets(editor,start,length){
     const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let offset=0,first,last;
@@ -515,6 +539,7 @@
   document.addEventListener('input',e=>{const t=e.target;let changed=false;if(fields[t.id]){data[fields[t.id]]=t.value;changed=true;}if(t.matches('[data-field]')){data.paragraphs[+t.closest('[data-index]').dataset.index][t.dataset.field]=clean(t.innerHTML);changed=true;}const wrap=t.closest('[data-block-index]');if(wrap&&t.dataset.blockField&&t.dataset.blockField!=='position'){data.blocks[+wrap.dataset.blockIndex][t.dataset.blockField]=t.isContentEditable?clean(t.innerHTML):t.value;changed=true;}if(changed){paper();save();}});
   document.addEventListener('focusin',e=>{if(e.target.matches('.rich-editor')){active=e.target;remember();}});document.addEventListener('selectionchange',remember);document.addEventListener('pointerdown',preserveBeforeToolbarAction,true);document.addEventListener('mousedown',preserveBeforeToolbarAction,true);
   $('#formatPainter').addEventListener('click',e=>{if(e.detail>1)return;if(painter)stopPainter();else setPainter();});
+  $('#paragraphIndent').addEventListener('click',toggleParagraphIndent);
   $('#formatPainter').addEventListener('dblclick',()=>{if(painter){painter.locked=true;$('#formatPainter').dataset.locked='true';syncToolbar();}else setPainter(true);});
   let painterTarget=null;
   document.addEventListener('pointerdown',e=>{painterTarget=painter&&e.button===0?e.target.closest('.rich-editor'):null;if(painter&&e.target.closest('.rich-toolbar')&&!e.target.closest('#formatPainter'))stopPainter();});

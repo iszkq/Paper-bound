@@ -13,6 +13,7 @@
 .format-btn, .tool-menu > summary { min-width: 36px; height: 36px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid transparent; border-radius: 5px; color: #444c51; background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .format-btn:hover, .tool-menu > summary:hover, .tool-menu[open] > summary { background: #f0f2f3; }
 .format-btn[aria-pressed="true"] { background: var(--red-soft); color: var(--red); }
+.format-btn:disabled { opacity: .45; cursor: default; }
 #formatPainter[data-locked="true"] { border-color: currentColor; }
 .format-painter-active .rich-editor, .format-painter-active .rich-editor * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='white' stroke='%2330383e' stroke-width='1.5' stroke-linejoin='round' d='M8 2h13v7H8zM10 9v4h3v7h3v-7h3V9'/%3E%3Cpath stroke='%2330383e' stroke-width='1.5' d='M3 13v8m-2-8h4m-4 8h4M12 2v4m5-4v4'/%3E%3C/svg%3E") 3 17, crosshair; }
 .format-btn b, .format-btn i { font-family: Georgia, serif; font-size: 19px; }
@@ -103,6 +104,8 @@ ul[data-task="true"] > li[data-checked="true"] { text-decoration: line-through; 
 .paper-paragraph { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
 .paper-paragraph p, .paper-paragraph div { text-indent: var(--paragraph-indent); }
 .paper-paragraph li p, .paper-paragraph li div { text-indent: 0; }
+.paper-paragraph [data-first-indent="off"], .paper-note-copy [data-first-indent="off"] { --paragraph-indent: 0em; text-indent: var(--paragraph-indent); }
+.paper-paragraph [data-first-indent="on"], .paper-note-copy [data-first-indent="on"] { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
 .paper-paragraph h1, .paper-paragraph h2, .paper-paragraph h3, .paper-paragraph h4, .paper-paragraph h5, .paper-paragraph h6 { margin: .45em 0; line-height: 1.45; text-indent: 0; }
 .paper-paragraph h1 { font-size: 2em; } .paper-paragraph h2 { font-size: 1.65em; } .paper-paragraph h3 { font-size: 1.35em; }
 .paper-paragraph h4 { font-size: 1.15em; } .paper-paragraph h5 { font-size: 1em; } .paper-paragraph h6 { font-size: .9em; }

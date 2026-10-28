@@ -68,3 +68,9 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 ```
 
 两份脚本都使用 4173 本机服务和独立浏览器上下文，截图写入 `output/playwright/`。
+
+`paragraph-indent.js` 验证按段取消／恢复首行缩进，对 P、DIV、BR 和直接文字的旧内容都有效；检查其余段落、列表与高亮不变、实际预览缩进距离、讲义／表格布局、选区、撤销重做、刷新保存、格式刷兼容和手机宽度。运行：
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraph-indent.js
+```
