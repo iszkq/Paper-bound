@@ -22,6 +22,7 @@
       if(n.nodeType===Node.TEXT_NODE)return esc(n.nodeValue);
       if(n.nodeType!==Node.ELEMENT_NODE||['SCRIPT','STYLE','IFRAME','OBJECT'].includes(n.tagName))return '';
       const tag=n.tagName, kids=Array.from(n.childNodes).map(walk).join(''); if(tag==='BR')return '<br>'; if(!tags.has(tag))return kids;
+      if(n.hasAttribute('data-format-boundary'))return '';
       if(tag==='DIV'&&n.hasAttribute('data-format-operation'))return kids;
       const styles=[], st=n.style;
       for(const prop of ['color','background-color','text-decoration-color']){const v=st.getPropertyValue(prop);if(color.test(v||''))styles.push(prop+':'+v);}
@@ -31,6 +32,7 @@
       if(/^(solid|double|dotted|dashed|wavy)$/.test(st.textDecorationStyle))styles.push('text-decoration-style:'+st.textDecorationStyle);
       if(/^(bold|bolder|[1-9]00)$/.test(st.fontWeight))styles.push('font-weight:'+st.fontWeight);
       if(/^(italic|normal)$/.test(st.fontStyle))styles.push('font-style:'+st.fontStyle);
+      if(/^(baseline|sub|super)$/.test(st.verticalAlign))styles.push('vertical-align:'+st.verticalAlign);
       const task=tag==='UL'&&n.dataset.task==='true'?' data-task="true"':'', checked=tag==='LI'&&n.dataset.checked==='true'?' data-checked="true"':'';
       const defaultSize=tag==='SPAN'&&n.dataset.defaultSize==='true'?' data-default-size="true"':'';
       const number=tag==='OL'?'start':tag==='LI'?'value':'',rawNumber=number&&n.getAttribute(number);
@@ -52,7 +54,7 @@
   function guideDocument(){return {id:noteRuntime.uuid(),title:'使用说明 · 从这里开始',folderId:'',kind:'guide',data:normalize({...documentDefaults,title:'使用说明 · 从这里开始',blocks:[{title:'欢迎使用纸间',html:'<p>把原文和自己的思考放在一起，慢慢读，也慢慢写。这份说明可以自由修改，或在文件库中删除。</p>'}],paragraphs:[
     {text:'一、打开文件库\n点击顶部「文件库」，可以新建文件夹、打开已有文件夹，也可以直接新建文档。点击文档名称即可打开，编辑中的内容会自动保存在本机。',note:'可以先新建一个文件夹，例如「阅读笔记」或「查经记录」。文档右侧的「⋯」支持重命名、移动、复制和删除。'},
     {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可搜索并选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
-    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 减少一级缩进，Shift+Enter 插入不编号的说明。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
+    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 减少一级缩进，Shift+Enter 插入不编号的说明。取消单项编号可用「列表 → 转为普通段落」，或 Ctrl+Shift+0；正文独立段落在预览中首行缩进两字符。选中来源文字后，单击格式刷刷一次，双击连续刷，Esc 退出。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
     {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。还可以导入 TXT、Markdown 和 HTML 文章。'},
     {text:'五、登录与同步\n登录后，文档和文件夹按账号保存在服务端，并自动同步。未登录时只保存在本机。',note:'网络中断时，修改先保存在本机，重新连接后继续同步。遇到多端冲突可保留两个版本。旧的本机文档可在账号设置中导入，仍建议定期下载备份。'}]})};}
   function blankLibrary(){const old=session===GUEST?readJson(KEY,null):null,guide=guideDocument(),docs=[guide];if(old)docs.push({id:noteRuntime.uuid(),title:old.title||'阅读札记',folderId:'',data:normalize(old)});return {folders:[],documents:docs,activeId:old?docs[1].id:guide.id,guideVersion:1};}
@@ -64,7 +66,7 @@
   function readLibrary(){const key='zhijian-library-v1:'+session,stored=readJson(key,null);const lib=normalizeTemplates(stored?.documents?.length?stored:blankLibrary());if(!lib.guideVersion){lib.documents.push(guideDocument());lib.guideVersion=1;}localStorage.setItem(key,JSON.stringify(lib));return lib;}
   let library=readLibrary(), activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;
   let data=normalize(activeDoc.data);
-  let active=null, range=null, layout='handout', timer, saveLimit, toastTimer;
+  let active=null, range=null, painter=null, layout='handout', timer, saveLimit, toastTimer;
   let savePending=false,lastSavedAt=0,saveError='',savedKey='',savedContent='';
   const fields={titleInput:'title',authorInput:'author',sourceInput:'source',dateInput:'date',dateHeadingInput:'dateHeading',topicInput:'topic',mastheadInput:'masthead'};
   function save(now=false){
@@ -119,8 +121,23 @@
   function replaceLibrary(next){clearTimeout(timer);library=normalizeTemplates(noteRuntime.clone(next));library.documents=library.documents.map(d=>({...d,data:normalize(d.data)}));activeDoc=library.documents.find(d=>d.id===library.activeId)||library.documents[0];library.activeId=activeDoc.id;data=normalize(activeDoc.data);render();save(true);}
   window.noteApp={replaceLibrary,getState:()=>({session,library,activeDoc,data}),getSaveState:()=>({pending:savePending,lastSavedAt,error:saveError}),save:()=>save(true),newDocument,requestNewDocument:newDocument,saveTemplate,renameTemplate,deleteTemplate,setDefaultTemplate,openDocument,switchUser,toast,normalize,parseArticle,importArticle,updateLibrary:()=>save(true)};
   function drawBlocks(){for(const pos of ['top','bottom']){const group=data.blocks.map((b,i)=>({b,i})).filter(x=>x.b.position===pos);$('#'+pos+'BlockEditors').innerHTML=group.map((x,n)=>'<section class="block-editor" data-block-index="'+x.i+'"><div class="block-editor-head"><input class="block-title-input" data-block-field="title" value="'+esc(x.b.title)+'" aria-label="栏目名称" placeholder="栏目名称"><select class="block-position" data-block-field="position" aria-label="栏目位置"><option value="top" '+(pos==='top'?'selected':'')+'>文前</option><option value="bottom" '+(pos==='bottom'?'selected':'')+'>文后</option></select><button class="small-icon-btn" data-action="up" '+(!n?'disabled':'')+' aria-label="上移栏目">↑</button><button class="small-icon-btn" data-action="down" '+(n===group.length-1?'disabled':'')+' aria-label="下移栏目">↓</button><button class="small-icon-btn" data-action="block-delete" aria-label="删除栏目">×</button></div><div class="rich-editor block-content-input" contenteditable="true" data-block-field="html" data-placeholder="写下'+(pos==='bottom'?'总结、收获或延伸思考':'概要、背景或要点')+'…" role="textbox" aria-multiline="true" aria-label="'+esc(x.b.title)+' 内容">'+x.b.html+'</div></section>').join('');}}
-  function paper(){applyDocumentFont();const blocks=pos=>data.blocks.filter(b=>b.position===pos).map(b=>'<section class="paper-custom-block '+(pos==='bottom'?'bottom-block':'')+'"><h2>'+esc(b.title)+'</h2><div>'+b.html+'</div></section>').join('');const rows=data.paragraphs.map(p=>'<section class="content-pair"><div class="content-pair-main"><div class="paper-paragraph">'+p.html+'</div></div><div class="content-pair-note"><div class="paper-note-copy">'+p.noteHtml+'</div></div></section>').join('');let head;if(layout==='table')head='<header class="paper-table-header"><h1 class="paper-table-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-table-meta"><span>作者：'+esc(data.author)+'</span><span>来源：'+esc(data.source)+'</span><span>'+esc(data.date)+'</span></div></header>';else head='<header class="paper-header"><div class="paper-date">'+esc(data.date||'日期未填写')+'<strong>'+esc(data.dateHeading)+'</strong>'+esc(data.topic)+'</div><div class="paper-title-wrap"><h1 class="paper-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-byline"><span>作者：'+esc(data.author||'未填写')+'</span><span>来源：'+esc(data.source||'未填写')+'</span></div></div><div class="paper-brand">'+esc(data.masthead)+'</div></header>';const bottom=blocks('bottom');$('#paper').classList.toggle('table-layout',layout==='table');$('#paper').innerHTML=head+blocks('top')+'<div class="paper-columns-head"><span>文段</span><span>分析</span></div><div class="paper-content-pairs">'+rows+'</div>'+(bottom?'<section class="paper-endnotes" aria-label="文末总结与补充">'+bottom+'</section>':'');}
-  function render(){active=null;range=null;syncToolbar();$('#fontSizePicker').value='';Object.entries(fields).forEach(([id,key])=>$('#'+id).value=data[key]||'');$('#panelCount').textContent='共 '+data.paragraphs.length+' 段';$('#articleList').innerHTML=data.paragraphs.map((p,i)=>'<article class="edit-pair" data-index="'+i+'"><section class="edit-cell"><div class="paragraph-top"><span class="para-number">文段 '+String(i+1).padStart(2,'0')+'</span><div class="para-controls"><button class="small-icon-btn paragraph-drag" draggable="true" title="拖动文段和对应分析到指定位置" aria-label="拖动第 '+(i+1)+' 段"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg></button><button class="small-icon-btn" data-para-move="up" aria-label="上移第 '+(i+1)+' 段" '+(i===0?'disabled':'')+'>↑</button><button class="small-icon-btn" data-para-move="down" aria-label="下移第 '+(i+1)+' 段" '+(i===data.paragraphs.length-1?'disabled':'')+'>↓</button><button class="delete-para" data-action="delete" aria-label="删除第 '+(i+1)+' 段">×</button></div></div><div class="rich-editor paragraph-text" contenteditable="true" data-field="html" data-placeholder="写下这一段正文…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段正文">'+p.html+'</div></section><section class="edit-cell"><div class="paragraph-top"><span class="para-number">对应分析 '+String(i+1).padStart(2,'0')+'</span></div><div class="rich-editor annotation-text" contenteditable="true" data-field="noteHtml" data-placeholder="写下这一段的分析、思考或批注…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段分析">'+p.noteHtml+'</div></section></article>').join('');drawBlocks();paper();}
+  function previewParagraphs(html){
+    const root=document.createElement('div');root.innerHTML=html;
+    function paragraphs(container){
+      const output=document.createDocumentFragment();let paragraph=null;
+      const flush=()=>{if(paragraph){output.append(paragraph);paragraph=null;}};
+      for(const node of Array.from(container.childNodes)){
+        if(node.nodeType===Node.ELEMENT_NODE&&/^(P|DIV|H[1-6]|OL|UL)$/.test(node.tagName)){
+          flush();if(node.tagName==='DIV')paragraphs(node);output.append(node);
+        }else if(node.nodeType===Node.ELEMENT_NODE&&node.tagName==='BR'){if(paragraph)flush();else output.append(node);}
+        else {if(!paragraph&&node.nodeType===Node.TEXT_NODE&&!node.textContent.trim()){output.append(node);continue;}if(!paragraph)paragraph=document.createElement('p');paragraph.append(node);}
+      }
+      flush();container.replaceChildren(output);
+    }
+    paragraphs(root);return root.innerHTML;
+  }
+  function paper(){applyDocumentFont();const blocks=pos=>data.blocks.filter(b=>b.position===pos).map(b=>'<section class="paper-custom-block '+(pos==='bottom'?'bottom-block':'')+'"><h2>'+esc(b.title)+'</h2><div>'+b.html+'</div></section>').join('');const rows=data.paragraphs.map(p=>'<section class="content-pair"><div class="content-pair-main"><div class="paper-paragraph">'+previewParagraphs(p.html)+'</div></div><div class="content-pair-note"><div class="paper-note-copy">'+p.noteHtml+'</div></div></section>').join('');let head;if(layout==='table')head='<header class="paper-table-header"><h1 class="paper-table-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-table-meta"><span>作者：'+esc(data.author)+'</span><span>来源：'+esc(data.source)+'</span><span>'+esc(data.date)+'</span></div></header>';else head='<header class="paper-header"><div class="paper-date">'+esc(data.date||'日期未填写')+'<strong>'+esc(data.dateHeading)+'</strong>'+esc(data.topic)+'</div><div class="paper-title-wrap"><h1 class="paper-title">'+esc(data.title||'未命名笔记')+'</h1><div class="paper-byline"><span>作者：'+esc(data.author||'未填写')+'</span><span>来源：'+esc(data.source||'未填写')+'</span></div></div><div class="paper-brand">'+esc(data.masthead)+'</div></header>';const bottom=blocks('bottom');$('#paper').classList.toggle('table-layout',layout==='table');$('#paper').innerHTML=head+blocks('top')+'<div class="paper-columns-head"><span>文段</span><span>分析</span></div><div class="paper-content-pairs">'+rows+'</div>'+(bottom?'<section class="paper-endnotes" aria-label="文末总结与补充">'+bottom+'</section>':'');}
+  function render(){if(painter)stopPainter();active=null;range=null;syncToolbar();$('#fontSizePicker').value='';Object.entries(fields).forEach(([id,key])=>$('#'+id).value=data[key]||'');$('#panelCount').textContent='共 '+data.paragraphs.length+' 段';$('#articleList').innerHTML=data.paragraphs.map((p,i)=>'<article class="edit-pair" data-index="'+i+'"><section class="edit-cell"><div class="paragraph-top"><span class="para-number">文段 '+String(i+1).padStart(2,'0')+'</span><div class="para-controls"><button class="small-icon-btn paragraph-drag" draggable="true" title="拖动文段和对应分析到指定位置" aria-label="拖动第 '+(i+1)+' 段"><svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg></button><button class="small-icon-btn" data-para-move="up" aria-label="上移第 '+(i+1)+' 段" '+(i===0?'disabled':'')+'>↑</button><button class="small-icon-btn" data-para-move="down" aria-label="下移第 '+(i+1)+' 段" '+(i===data.paragraphs.length-1?'disabled':'')+'>↓</button><button class="delete-para" data-action="delete" aria-label="删除第 '+(i+1)+' 段">×</button></div></div><div class="rich-editor paragraph-text" contenteditable="true" data-field="html" data-placeholder="写下这一段正文…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段正文">'+p.html+'</div></section><section class="edit-cell"><div class="paragraph-top"><span class="para-number">对应分析 '+String(i+1).padStart(2,'0')+'</span></div><div class="rich-editor annotation-text" contenteditable="true" data-field="noteHtml" data-placeholder="写下这一段的分析、思考或批注…" role="textbox" aria-multiline="true" aria-label="第 '+(i+1)+' 段分析">'+p.noteHtml+'</div></section></article>').join('');drawBlocks();paper();}
   function selectionElements(r,editor){
     if(r.collapsed){
       let node=r.startContainer;
@@ -144,6 +161,7 @@
     return '';
   }
   function syncToolbar(){
+    if(painter){$('#formatHint').textContent=painter.locked?'格式刷已锁定：可连续刷选文字 · Esc 退出':'格式刷：刷选目标文字，单击可刷一个词 · Esc 取消';return;}
     // Native select controls keep their own focus while an option is being chosen.
     if(document.activeElement?.closest('.rich-toolbar'))return;
     const elements=active?.isConnected&&range?selectionElements(range,active):[];
@@ -167,7 +185,7 @@
   function restore(){if(!active?.isConnected||!range||!active.contains(range.commonAncestorContainer)){toast('先在正文、分析或栏目中选中文字');return false;}const editor=active,saved=range.cloneRange();editor.focus({preventScroll:true});const sel=getSelection();sel.removeAllRanges();sel.addRange(saved);active=editor;range=saved.cloneRange();return true;}
   function commit(){active?.dispatchEvent(new InputEvent('input',{bubbles:true}));remember();}
   function format(cmd,val=null){if(!restore())return;document.execCommand('styleWithCSS',false,true);document.execCommand(cmd,false,val);commit();}
-  function textType(tag){if(!/^(p|h[1-6])$/.test(tag)||!restore())return;document.execCommand('formatBlock',false,tag);commit();}
+  function textType(tag){if(!/^(p|h[1-6])$/.test(tag)||!restore())return;if(tag==='p'&&currentListItem()){unwrapListItem(currentListItem());return;}document.execCommand('formatBlock',false,tag);commit();}
   function applyDocumentFont(){const root=document.documentElement;root.toggleAttribute('data-document-font',!!data.fontFamily);if(data.fontFamily)root.style.setProperty('--document-font',data.fontFamily+', var(--font-reading)');else root.style.removeProperty('--document-font');$('#fontFamilyPicker').value=data.fontFamily;}
   function selectTextOffsets(editor,start,length){
     const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let offset=0,first,last;
@@ -231,6 +249,10 @@
   }
   function replaceEditorContents(clone,start,length,caretMarker=null){
     clone.querySelectorAll('[data-format-operation]').forEach(el=>el.replaceWith(...el.childNodes));
+    clone.querySelectorAll('[data-format-boundary]').forEach(el=>el.remove());
+    // Start outside any list. Chromium otherwise keeps its first LI around the
+    // replacement; removing that shell by hand breaks the native undo history.
+    const boundary=document.createElement('p');boundary.dataset.formatBoundary='true';boundary.append(document.createElement('br'));active.prepend(boundary);
     const selection=getSelection(),whole=document.createRange();whole.selectNodeContents(active);selection.removeAllRanges();selection.addRange(whole);
     // Chromium normalizes nested decorations during insertHTML. Insert an undoable
     // container first, then populate it to preserve untouched annotations exactly.
@@ -238,14 +260,66 @@
     const operation=active.querySelector('[data-format-operation]');
     if(operation){
       operation.replaceChildren(...clone.childNodes);
-      // A native replacement can retain an old list shell around the operation.
-      // The clone already contains every paragraph, so keep exactly that tree.
-      if(caretMarker&&operation.parentElement!==active)active.replaceChildren(operation);
     }
     if(caretMarker?.isConnected){
       const caret=document.createRange();caret.setStartBefore(caretMarker);caret.collapse(true);caretMarker.remove();selection.removeAllRanges();selection.addRange(caret);
     }else if(length)selectTextOffsets(active,start,length);else setTextCaret(active,start);
     commit();
+  }
+  function characterFormat(element,editor){
+    const css=getComputedStyle(element),lines=[];let background='',size='',vertical='',defaultSize=false;
+    for(let el=element;el&&el!==editor;el=el.parentElement){
+      const st=getComputedStyle(el);
+      if(!background&&st.backgroundColor!=='transparent'&&st.backgroundColor!=='rgba(0, 0, 0, 0)')background=st.backgroundColor;
+      if(!size&&!defaultSize){if(el.dataset.defaultSize==='true')defaultSize=true;else if(el.style.fontSize)size=css.fontSize;}
+      if(!vertical&&['sub','super'].includes(st.verticalAlign)){vertical=st.verticalAlign;if(!size&&!defaultSize)size=css.fontSize;}
+      if(st.textDecorationLine!=='none')lines.push({textDecorationLine:st.textDecorationLine,textDecorationStyle:st.textDecorationStyle,textDecorationColor:st.textDecorationColor,textDecorationThickness:st.textDecorationThickness,textUnderlineOffset:st.textUnderlineOffset});
+    }
+    return {css:{color:css.color,fontWeight:css.fontWeight,fontStyle:css.fontStyle,...(size?{fontSize:size}:{}),...(background?{backgroundColor:background}:{}),...(vertical?{verticalAlign:vertical}:{})},lines,defaultSize};
+  }
+  function setPainter(locked=false){
+    if(!restore())return;
+    const element=selectionElements(range,active)[0],snapshot=characterFormat(element,active);
+    // A heading's size is part of its visible character formatting.
+    if(!snapshot.css.fontSize&&!snapshot.defaultSize&&element.closest('h1,h2,h3,h4,h5,h6'))snapshot.css.fontSize=getComputedStyle(element).fontSize;
+    if(!snapshot.css.fontSize)snapshot.defaultSize=true;
+    painter={snapshot,locked};document.body.classList.add('format-painter-active');
+    $('#formatPainter').setAttribute('aria-pressed','true');$('#formatPainter').dataset.locked=String(locked);syncToolbar();
+    toast(locked?'连续格式刷已开启，按 Esc 退出':'已复制文字格式，请刷选目标文字');
+  }
+  function stopPainter(){
+    painter=null;document.body.classList.remove('format-painter-active');
+    $('#formatPainter').setAttribute('aria-pressed','false');delete $('#formatPainter').dataset.locked;syncToolbar();
+  }
+  function applyPainter(expandWord=false){
+    if(!painter||!restore())return;
+    const r=getSelection().getRangeAt(0);
+    if(r.collapsed&&expandWord){
+      let node=r.startContainer,at=r.startOffset;
+      if(node.nodeType!==Node.TEXT_NODE){node=node.childNodes[at]||node.childNodes[at-1];if(node?.nodeType!==Node.TEXT_NODE)return;at=0;}
+      const words=typeof Intl.Segmenter==='function'?Array.from(new Intl.Segmenter('zh',{granularity:'word'}).segment(node.data)):Array.from(node.data.matchAll(/[\p{L}\p{N}]+/gu),match=>({segment:match[0],index:match.index,isWordLike:true})),word=words.find(part=>part.isWordLike&&at>=part.index&&at<part.index+part.segment.length);
+      if(!word)return;r.setStart(node,word.index);r.setEnd(node,word.index+word.segment.length);
+    }
+    if(r.collapsed)return;
+    const {start,length}=selectionOffsets(active,r),clone=active.cloneNode(true),originalWalker=document.createTreeWalker(active,NodeFilter.SHOW_TEXT),copyWalker=document.createTreeWalker(clone,NodeFilter.SHOW_TEXT),pairs=[];
+    while(originalWalker.nextNode()&&copyWalker.nextNode())pairs.push({node:originalWalker.currentNode,copy:copyWalker.currentNode,format:characterFormat(originalWalker.currentNode.parentElement,active)});
+    // Decorations on an ancestor cannot be cancelled by a child. Normalize the
+    // inline tree, then restore each untouched run and replace the selected runs.
+    for(const el of Array.from(clone.querySelectorAll('*')).reverse()){
+      if(/^(B|STRONG|U|EM|I|S|SPAN|SUB|SUP)$/.test(el.tagName))el.replaceWith(...el.childNodes);
+      else el.removeAttribute('style');
+    }
+    function formatted(text,snapshot){
+      const span=document.createElement('span');Object.assign(span.style,snapshot.css);if(snapshot.defaultSize)span.dataset.defaultSize='true';span.textContent=text;
+      let content=span;for(const line of snapshot.lines){const wrapper=document.createElement('span');Object.assign(wrapper.style,line);wrapper.append(content);content=wrapper;}return content;
+    }
+    let offset=0;
+    for(const {node,copy,format} of pairs){
+      const end=offset+node.length,from=Math.max(0,Math.min(node.length,start-offset)),to=Math.max(from,Math.min(node.length,start+length-offset)),fragment=document.createDocumentFragment();
+      for(const [a,b,selected] of [[0,from,false],[from,to,true],[to,node.length,false]])if(a<b)fragment.append(formatted(node.data.slice(a,b),selected?painter.snapshot:format));
+      copy.replaceWith(fragment);offset=end;
+    }
+    const locked=painter.locked;replaceEditorContents(clone,start,length);if(!locked)stopPainter();
   }
   function adjustFontSize(direction){
     if(!restore())return;
@@ -288,10 +362,28 @@
     previous.replaceWith(list);
   }
   function unwrapListItem(item){
-    const list=item.parentElement,paragraph=document.createElement('p'),parent=list.parentNode,nested=[];
-    for(const child of Array.from(item.childNodes)){if(child.nodeType===Node.ELEMENT_NODE&&/^(OL|UL)$/.test(child.tagName))nested.push(child);else paragraph.append(child);}
-    if(!paragraph.hasChildNodes())paragraph.append(document.createElement('br'));
-    parent.insertBefore(paragraph,list);nested.forEach(child=>parent.insertBefore(child,list));item.remove();if(!list.children.length)list.remove();
+    const r=getSelection().getRangeAt(0),{start,length}=selectionOffsets(active,r),clone=active.cloneNode(true);
+    const originalList=item.parentElement,index=Array.from(originalList.children).indexOf(item),copy=clone.querySelectorAll('li')[Array.from(active.querySelectorAll('li')).indexOf(item)],list=copy.parentElement;
+    let marker=null;
+    if(r.collapsed){
+      const path=[];for(let node=r.startContainer;node!==active;node=node.parentNode)path.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes,node));
+      const node=path.reduce((parent,index)=>parent.childNodes[index],clone),caret=document.createRange();caret.setStart(node,r.startOffset);caret.collapse(true);marker=document.createElement('span');marker.dataset.listCaret='true';caret.insertNode(marker);
+    }
+    let nextNumber=originalList.tagName==='OL'?originalList.start:1;
+    for(const sibling of Array.from(originalList.children).slice(0,index+1)){if(sibling.hasAttribute('value'))nextNumber=sibling.value;nextNumber++;}
+    const tail=list.cloneNode(false);while(copy.nextSibling)tail.append(copy.nextSibling);
+    if(tail.tagName==='OL')tail.start=nextNumber;
+    const content=document.createDocumentFragment();let paragraph=document.createElement('p');
+    const flush=()=>{if(paragraph.hasChildNodes()){content.append(paragraph);paragraph=document.createElement('p');}};
+    for(const child of Array.from(copy.childNodes)){
+      if(child.nodeType===Node.ELEMENT_NODE&&/^(OL|UL)$/.test(child.tagName)){flush();content.append(child);}
+      else if(child.nodeType===Node.ELEMENT_NODE&&/^(P|DIV|H[1-6])$/.test(child.tagName)){flush();const p=document.createElement('p');p.append(...child.childNodes);content.append(p);}
+      else paragraph.append(child);
+    }
+    flush();if(!content.hasChildNodes()){paragraph.append(document.createElement('br'));content.append(paragraph);}
+    if(tail.hasChildNodes())content.append(tail);
+    list.after(content);copy.remove();if(!list.children.length)list.remove();
+    replaceEditorContents(clone,start,length,marker);
   }
   function currentParagraphRange(editor,caret){
     const element=caret.startContainer.nodeType===Node.ELEMENT_NODE?caret.startContainer:caret.startContainer.parentElement;
@@ -381,7 +473,7 @@
   document.addEventListener('beforeinput',autoOrderedList);
   document.addEventListener('click',event=>{
     const button=event.target.closest('[data-list-action]');if(!button)return;
-    if(button.dataset.listAction==='linebreak')listLineBreak();else changeListDepth(button.dataset.listAction==='outdent');
+    if(button.dataset.listAction==='paragraph')textType('p');else if(button.dataset.listAction==='linebreak')listLineBreak();else changeListDepth(button.dataset.listAction==='outdent');
     closeMenus();
   });
   document.addEventListener('keydown',event=>{
@@ -422,10 +514,17 @@
   articleList.addEventListener('dragend',()=>{draggedParagraph=null;clearParagraphDrop();});
   document.addEventListener('input',e=>{const t=e.target;let changed=false;if(fields[t.id]){data[fields[t.id]]=t.value;changed=true;}if(t.matches('[data-field]')){data.paragraphs[+t.closest('[data-index]').dataset.index][t.dataset.field]=clean(t.innerHTML);changed=true;}const wrap=t.closest('[data-block-index]');if(wrap&&t.dataset.blockField&&t.dataset.blockField!=='position'){data.blocks[+wrap.dataset.blockIndex][t.dataset.blockField]=t.isContentEditable?clean(t.innerHTML):t.value;changed=true;}if(changed){paper();save();}});
   document.addEventListener('focusin',e=>{if(e.target.matches('.rich-editor')){active=e.target;remember();}});document.addEventListener('selectionchange',remember);document.addEventListener('pointerdown',preserveBeforeToolbarAction,true);document.addEventListener('mousedown',preserveBeforeToolbarAction,true);
+  $('#formatPainter').addEventListener('click',e=>{if(e.detail>1)return;if(painter)stopPainter();else setPainter();});
+  $('#formatPainter').addEventListener('dblclick',()=>{if(painter){painter.locked=true;$('#formatPainter').dataset.locked='true';syncToolbar();}else setPainter(true);});
+  let painterTarget=null;
+  document.addEventListener('pointerdown',e=>{painterTarget=painter&&e.button===0?e.target.closest('.rich-editor'):null;if(painter&&e.target.closest('.rich-toolbar')&&!e.target.closest('#formatPainter'))stopPainter();});
+  document.addEventListener('pointerup',e=>{const target=painterTarget;painterTarget=null;if(!target||!painter||!target.contains(e.target))return;setTimeout(()=>{if(!painter)return;remember();if(active===target)applyPainter(true);},0);});
+  document.addEventListener('beforeinput',e=>{if(painter&&e.target.closest('.rich-editor')&&!/^history/.test(e.inputType))stopPainter();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&painter){e.preventDefault();stopPainter();}});
   document.addEventListener('change',e=>{if(e.target.matches('[data-block-field="position"]')){data.blocks[+e.target.closest('[data-block-index]').dataset.blockIndex].position=e.target.value;render();save();}if(e.target.id==='fontSizePicker'){if(e.target.value)style({fontSize:e.target.value+'px'});else style({}, {'data-default-size':'true'});}if(e.target.id==='fontFamilyPicker'){data.fontFamily=fontFamilies.has(e.target.value)?e.target.value:'';applyDocumentFont();save();}if(e.target.id==='textTypePicker')textType(e.target.value);});
-  document.addEventListener('click',e=>{const t=e.target,menuSummary=t.closest('.tool-menu > summary');if(menuSummary)closeMenus(menuSummary.parentElement);const fmt=t.closest('[data-format]'),kind=t.closest('[data-kind]'),apply=t.closest('[data-apply]'),clear=t.closest('[data-clear]'),list=t.closest('[data-list]'),add=t.closest('[data-add-block]'),action=t.closest('[data-action]');if(fmt)format(fmt.dataset.format);if(kind){const k=kind.dataset.kind,c=kind.dataset.color;if(k==='text')format('foreColor',c);else if(k==='highlight')format('hiliteColor',c);else decorateLine(c,k==='wave'?'wavy':'solid');closeMenus();}if(apply){const input=$('input[type=color]',apply.parentElement);const k=apply.dataset.apply;if(k==='text')format('foreColor',input.value);else if(k==='highlight')format('hiliteColor',input.value);else decorateLine(input.value,k==='wave'?'wavy':'solid');closeMenus();}if(clear){const k=clear.dataset.clear;if(k==='text')format('foreColor','#30383e');else if(k==='highlight')format('hiliteColor','transparent');else clearLineMarks(k==='wave'?'wavy':'solid');closeMenus();}if(list){insertList(list.dataset.list);closeMenus();}if(add)addBlock(add.dataset.addBlock);if(action){const k=action.dataset.action;if(k==='delete'){const i=+action.closest('[data-index]').dataset.index;if(data.paragraphs.length===1){toast('至少保留一个文段');return;}if(!confirm('删除文段和对应分析？'))return;data.paragraphs.splice(i,1);}else{const bi=+action.closest('[data-block-index]').dataset.blockIndex;if(k==='block-delete'){if(!confirm('删除这个栏目？'))return;data.blocks.splice(bi,1);}else{const group=data.blocks.map((b,n)=>b.position===data.blocks[bi].position?n:-1).filter(n=>n>=0),at=group.indexOf(bi),to=group[at+(k==='up'?-1:1)];if(to===undefined)return;[data.blocks[bi],data.blocks[to]]=[data.blocks[to],data.blocks[bi]];}}render();save();}const view=t.closest('[data-view]');if(view){document.body.classList.toggle('preview-mode',view.dataset.view==='preview');document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b===view));closeMenus();}const mode=t.closest('[data-layout]');if(mode){layout=mode.dataset.layout;document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active',b===mode));paper();}if(!t.closest('.tool-menu'))closeMenus();});
+  document.addEventListener('click',e=>{const t=e.target,menuSummary=t.closest('.tool-menu > summary');if(menuSummary)closeMenus(menuSummary.parentElement);const fmt=t.closest('[data-format]'),kind=t.closest('[data-kind]'),apply=t.closest('[data-apply]'),clear=t.closest('[data-clear]'),list=t.closest('[data-list]'),add=t.closest('[data-add-block]'),action=t.closest('[data-action]');if(fmt)format(fmt.dataset.format);if(kind){const k=kind.dataset.kind,c=kind.dataset.color;if(k==='text')format('foreColor',c);else if(k==='highlight')format('hiliteColor',c);else decorateLine(c,k==='wave'?'wavy':'solid');closeMenus();}if(apply){const input=$('input[type=color]',apply.parentElement);const k=apply.dataset.apply;if(k==='text')format('foreColor',input.value);else if(k==='highlight')format('hiliteColor',input.value);else decorateLine(input.value,k==='wave'?'wavy':'solid');closeMenus();}if(clear){const k=clear.dataset.clear;if(k==='text')format('foreColor','#30383e');else if(k==='highlight')format('hiliteColor','transparent');else clearLineMarks(k==='wave'?'wavy':'solid');closeMenus();}if(list){insertList(list.dataset.list);closeMenus();}if(add)addBlock(add.dataset.addBlock);if(action){const k=action.dataset.action;if(k==='delete'){const i=+action.closest('[data-index]').dataset.index;if(data.paragraphs.length===1){toast('至少保留一个文段');return;}if(!confirm('删除文段和对应分析？'))return;data.paragraphs.splice(i,1);}else{const bi=+action.closest('[data-block-index]').dataset.blockIndex;if(k==='block-delete'){if(!confirm('删除这个栏目？'))return;data.blocks.splice(bi,1);}else{const group=data.blocks.map((b,n)=>b.position===data.blocks[bi].position?n:-1).filter(n=>n>=0),at=group.indexOf(bi),to=group[at+(k==='up'?-1:1)];if(to===undefined)return;[data.blocks[bi],data.blocks[to]]=[data.blocks[to],data.blocks[bi]];}}render();save();}const view=t.closest('[data-view]');if(view){if(painter)stopPainter();document.body.classList.toggle('preview-mode',view.dataset.view==='preview');document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b===view));closeMenus();}const mode=t.closest('[data-layout]');if(mode){layout=mode.dataset.layout;document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active',b===mode));paper();}if(!t.closest('.tool-menu'))closeMenus();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus();});
-  window.noteEditor={remember,format,textType,insertList,changeListDepth,listLineBreak,adjustFontSize,underline:()=>decorateLine('#b73530','solid',true),wave:()=>decorateLine('#b73530','wavy',true),toggleHighlight,resetSize:()=>style({}, {'data-default-size':'true'})};
+  window.noteEditor={remember,format,copyFormat:()=>setPainter(true),pasteFormat:()=>applyPainter(false),textType,insertList,changeListDepth,listLineBreak,adjustFontSize,underline:()=>decorateLine('#b73530','solid',true),wave:()=>decorateLine('#b73530','wavy',true),toggleHighlight,resetSize:()=>style({}, {'data-default-size':'true'})};
   $('#addBtn').addEventListener('click',addParagraph);$('#addBottom').addEventListener('click',addParagraph);$('#printBtn').addEventListener('click',()=>{document.body.classList.add('preview-mode');window.print();});$('#printPreviewBtn').addEventListener('click',()=>window.print());
   $('#newBtn').addEventListener('click',()=>window.noteApp.requestNewDocument(activeDoc.folderId));$('#resetBtn').addEventListener('click',()=>{if(!confirm('恢复示例内容？当前笔记会被替换。'))return;data=normalize(sample);render();save();toast('已恢复示例内容');});
   function parseArticle(txt,ext='txt'){

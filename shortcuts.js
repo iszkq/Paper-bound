@@ -28,6 +28,8 @@
     {group:'常规',name:'查找页面文字',keys:[['Mod','F']]},
     {group:'文本格式',name:'加粗',keys:[['Mod','B']],codes:['KeyB'],editing:true,run:command('format','bold')},
     {group:'文本格式',name:'斜体',keys:[['Mod','I']],codes:['KeyI'],editing:true,run:command('format','italic')},
+    {group:'文本格式',name:'复制文字格式（连续格式刷）',keys:[['Mod','Shift','C']],codes:['KeyC'],shift:true,editing:true,run:command('copyFormat')},
+    {group:'文本格式',name:'将格式刷应用到所选文字（已复制格式时）',keys:[['Mod','Shift','V']],codes:['KeyV'],shift:true,editing:true,when:()=>document.body.classList.contains('format-painter-active'),run:command('pasteFormat')},
     {group:'文本格式',name:'切换红色粗实线下划线',keys:[['Mod','U']],codes:['KeyU'],editing:true,run:command('underline')},
     {group:'文本格式',name:'切换红色波浪线',keys:[['Mod','Shift','U']],codes:['KeyU'],shift:true,editing:true,run:command('wave')},
     {group:'文本格式',name:'删除线',keys:[['Mod','Shift','X']],codes:['KeyX'],shift:true,editing:true,run:command('format','strikeThrough')},
@@ -73,7 +75,7 @@
     if(event.key==='Escape'&&!panel.hidden){event.preventDefault();showPanel(false);return;}
     if(!(event.ctrlKey||event.metaKey)||event.ctrlKey&&event.metaKey)return;
     const inEditor=!!event.target.closest('.rich-editor')&&!document.body.classList.contains('preview-mode');
-    const item=shortcuts.find(item=>item.run&&(!item.editing||inEditor)&&(matches(event,item)||item.alternate&&matches(event,item.alternate)));
+    const item=shortcuts.find(item=>item.run&&(!item.when||item.when())&&(!item.editing||inEditor)&&(matches(event,item)||item.alternate&&matches(event,item.alternate)));
     if(!item)return;
     event.preventDefault();item.run();
   });

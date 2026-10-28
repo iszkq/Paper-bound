@@ -55,3 +55,16 @@ npx --yes --package @playwright/cli playwright-cli -s=templates-check run-code -
 ```
 
 脚本会在隔离服务中创建测试账号；测试管理员使用本页第一节的 `deployment_admin`。截图写入 `output/playwright/`。
+
+## 单项转段落与格式刷
+
+`paragraphs.js` 在独立访客上下文验证第七项转普通段落的菜单、文本类型、快捷键及列表按钮入口，保留文字位置、高亮粗体、后续编号和选区；检查首尾项、撤销重做、保存刷新，以及旧版 P／DIV／直接文字／BR 结构在讲义与表格预览中的实际两字符缩进和手机宽度。
+
+`format-painter.js` 验证单次与连续模式、Esc 和按钮取消、跨正文与分析、局部替换旧格式、两种下划线叠加、未选中区域保留、撤销重做、键盘复制与应用、保存刷新、真实鼠标反向拖选、点击词语、跨段与嵌套列表编号保留，以及手机布局。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraphs.js
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/format-painter.js
+```
+
+两份脚本都使用 4173 本机服务和独立浏览器上下文，截图写入 `output/playwright/`。
