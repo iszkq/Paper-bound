@@ -33,7 +33,9 @@
       if(/^(italic|normal)$/.test(st.fontStyle))styles.push('font-style:'+st.fontStyle);
       const task=tag==='UL'&&n.dataset.task==='true'?' data-task="true"':'', checked=tag==='LI'&&n.dataset.checked==='true'?' data-checked="true"':'';
       const defaultSize=tag==='SPAN'&&n.dataset.defaultSize==='true'?' data-default-size="true"':'';
-      return '<'+tag.toLowerCase()+task+checked+defaultSize+(styles.length?' style="'+styles.join(';')+'"':'')+'>'+kids+'</'+tag.toLowerCase()+'>';
+      const number=tag==='OL'?'start':tag==='LI'?'value':'',rawNumber=number&&n.getAttribute(number);
+      const numbering=rawNumber&&/^-?\d{1,9}$/.test(rawNumber)?' '+number+'="'+Number(rawNumber)+'"':'';
+      return '<'+tag.toLowerCase()+task+checked+defaultSize+numbering+(styles.length?' style="'+styles.join(';')+'"':'')+'>'+kids+'</'+tag.toLowerCase()+'>';
     };
     return Array.from(doc.body.childNodes).map(walk).join('');
   }
@@ -49,8 +51,8 @@
   const newNote=()=>normalize({...documentDefaults,paragraphs:[{}]});
   function guideDocument(){return {id:noteRuntime.uuid(),title:'使用说明 · 从这里开始',folderId:'',kind:'guide',data:normalize({...documentDefaults,title:'使用说明 · 从这里开始',blocks:[{title:'欢迎使用纸间',html:'<p>把原文和自己的思考放在一起，慢慢读，也慢慢写。这份说明可以自由修改，或在文件库中删除。</p>'}],paragraphs:[
     {text:'一、打开文件库\n点击顶部「文件库」，可以新建文件夹、打开已有文件夹，也可以直接新建文档。点击文档名称即可打开，编辑中的内容会自动保存在本机。',note:'可以先新建一个文件夹，例如「阅读笔记」或「查经记录」。文档右侧的「⋯」支持重命名、移动、复制和删除。'},
-    {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
-    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。列表可以从光标位置插入。',note:'文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
+    {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可搜索并选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
+    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 减少一级缩进，Shift+Enter 插入不编号的说明。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
     {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。还可以导入 TXT、Markdown 和 HTML 文章。'},
     {text:'五、登录与同步\n登录后，文档和文件夹按账号保存在服务端，并自动同步。未登录时只保存在本机。',note:'网络中断时，修改先保存在本机，重新连接后继续同步。遇到多端冲突可保留两个版本。旧的本机文档可在账号设置中导入，仍建议定期下载备份。'}]})};}
   function blankLibrary(){const old=session===GUEST?readJson(KEY,null):null,guide=guideDocument(),docs=[guide];if(old)docs.push({id:noteRuntime.uuid(),title:old.title||'阅读札记',folderId:'',data:normalize(old)});return {folders:[],documents:docs,activeId:old?docs[1].id:guide.id,guideVersion:1};}
@@ -234,7 +236,7 @@
     // container first, then populate it to preserve untouched annotations exactly.
     document.execCommand('insertHTML',false,'<div data-format-operation="true">&#8203;</div>');
     const operation=active.querySelector('[data-format-operation]');if(operation)operation.replaceChildren(...clone.childNodes);
-    selectTextOffsets(active,start,length);commit();
+    if(length)selectTextOffsets(active,start,length);else setTextCaret(active,start);commit();
   }
   function adjustFontSize(direction){
     if(!restore())return;
@@ -245,33 +247,124 @@
   }
   function insertList(kind){
     if(!restore())return;
-    const sel=getSelection(),r=sel.getRangeAt(0);
-    if(!r.collapsed){document.execCommand(kind==='ordered'?'insertOrderedList':'insertUnorderedList');if(kind==='task'){const ul=sel.anchorNode?.parentElement?.closest('ul');if(ul)ul.dataset.task='true';}commit();return;}
-    const startElement=r.startContainer.nodeType===Node.ELEMENT_NODE?r.startContainer:r.startContainer.parentElement;
-    const currentItem=startElement?.closest('li');
-    if(currentItem&&active.contains(currentItem)){
-      const currentList=currentItem.closest('ul,ol');
-      if(currentList&&(kind==='ordered')===(currentList.tagName==='OL')){
-        const tailRange=r.cloneRange();tailRange.selectNodeContents(currentItem);tailRange.setStart(r.startContainer,r.startOffset);
-        const tail=tailRange.extractContents(),nextItem=document.createElement('li');
-        if(tail.textContent.trim()||tail.querySelector('*'))nextItem.append(tail);else nextItem.append(document.createElement('br'));
-        currentList.insertBefore(nextItem,currentItem.nextSibling);
-        const next=document.createRange();next.selectNodeContents(nextItem);next.collapse(true);sel.removeAllRanges();sel.addRange(next);commit();return;
-      }
+    // List commands operate on the current paragraph (or selected paragraphs),
+    // never on an empty item inserted between the two halves of a sentence.
+    const sel=getSelection(),r=sel.getRangeAt(0),before=currentListItem(),previous=before?.parentElement;
+    if(before){
+      if((kind==='ordered'&&previous.tagName==='OL')||(kind==='unordered'&&previous.tagName==='UL'&&!previous.dataset.task)||(kind==='task'&&previous.tagName==='UL'&&previous.dataset.task==='true'))unwrapListItem(before);
+      else replaceListKind(previous,kind);
+      commit();return;
+    }else{
+      if(r.collapsed&&!before){convertCurrentParagraph(kind);commit();return;}
+      document.execCommand(kind==='ordered'?'insertOrderedList':'insertUnorderedList');
+      const list=currentListItem()?.parentElement;
+      if(kind==='task'&&list?.tagName==='UL')list.dataset.task='true';
     }
-    const list=document.createElement(kind==='ordered'?'ol':'ul');
-    if(kind==='task')list.dataset.task='true';
-    const item=document.createElement('li');item.append(document.createElement('br'));list.append(item);
-    const beforeRange=r.cloneRange();beforeRange.selectNodeContents(active);beforeRange.setEnd(r.startContainer,r.startOffset);
-    const afterRange=r.cloneRange();afterRange.selectNodeContents(active);afterRange.setStart(r.startContainer,r.startOffset);
-    const before=beforeRange.cloneContents(),after=afterRange.cloneContents();
-    const hasContent=frag=>frag.textContent.trim()||frag.querySelector('*');
-    active.replaceChildren();
-    if(hasContent(before)){const block=document.createElement('div');block.append(before);active.append(block);}
-    active.append(list);
-    if(hasContent(after)){const block=document.createElement('div');block.append(after);active.append(block);}
-    const next=document.createRange();next.selectNodeContents(item);next.collapse(true);sel.removeAllRanges();sel.addRange(next);commit();
+    commit();
   }
+  function setTextCaret(editor,offset){
+    const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT);let node,last,remaining=Math.max(0,offset);
+    while(walker.nextNode()){
+      node=walker.currentNode;last=node;
+      if(remaining<=node.length){const r=document.createRange();r.setStart(node,remaining);r.collapse(true);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);return;}
+      remaining-=node.length;
+    }
+    const r=document.createRange();if(last)r.setStart(last,last.length);else r.selectNodeContents(editor);r.collapse(true);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);
+  }
+  function replaceListKind(previous,kind){
+    const list=document.createElement(kind==='ordered'?'ol':'ul');
+    if(kind==='ordered'&&previous.tagName==='OL'&&previous.hasAttribute('start'))list.start=previous.start;
+    if(kind==='task')list.dataset.task='true';
+    while(previous.firstChild)list.append(previous.firstChild);
+    previous.replaceWith(list);
+  }
+  function unwrapListItem(item){
+    const list=item.parentElement,paragraph=document.createElement('p'),parent=list.parentNode,nested=[];
+    for(const child of Array.from(item.childNodes)){if(child.nodeType===Node.ELEMENT_NODE&&/^(OL|UL)$/.test(child.tagName))nested.push(child);else paragraph.append(child);}
+    if(!paragraph.hasChildNodes())paragraph.append(document.createElement('br'));
+    parent.insertBefore(paragraph,list);nested.forEach(child=>parent.insertBefore(child,list));item.remove();if(!list.children.length)list.remove();
+  }
+  function convertCurrentParagraph(kind,start=1){
+    const sel=getSelection(),r=sel.getRangeAt(0),{start:caretOffset}=selectionOffsets(active,r),node=r.startContainer,clone=active.cloneNode(true);
+    const pathTo=target=>{const path=[];for(let current=target;current!==active;current=current.parentNode)path.unshift(Array.prototype.indexOf.call(current.parentNode.childNodes,current));return path;};
+    const followPath=(root,path)=>path.reduce((parent,index)=>parent.childNodes[index],root),mappedNode=followPath(clone,pathTo(node)),mappedRange=document.createRange();
+    mappedRange.setStart(mappedNode,Math.min(r.startOffset,mappedNode.nodeType===Node.TEXT_NODE?mappedNode.length:mappedNode.childNodes.length));mappedRange.collapse(true);
+    const element=mappedNode.nodeType===Node.ELEMENT_NODE?mappedNode:mappedNode.parentElement;
+    const block=element?.closest('p,h1,h2,h3,h4,h5,h6');
+    const candidate=block&&active.contains(block)?followPath(clone,pathTo(block)):null;
+    let list, item;
+    if(candidate){
+      list=document.createElement(kind==='ordered'?'ol':'ul');item=document.createElement('li');
+      while(candidate.firstChild)item.append(candidate.firstChild);
+      if(!item.hasChildNodes())item.append(document.createElement('br'));
+      list.append(item);candidate.replaceWith(list);
+    }else{
+      const top=mappedNode===clone?clone:(()=>{let current=mappedNode.nodeType===Node.ELEMENT_NODE?mappedNode:mappedNode.parentElement;while(current?.parentElement!==clone&&current!==clone)current=current.parentElement;return current||clone;})();
+      const scope=top===clone?clone:top,breaks=Array.from(scope.querySelectorAll('br'));
+      if(scope.tagName==='BR')breaks.unshift(scope);
+      let before=null,after=null;
+      for(const br of breaks){const brRange=document.createRange();brRange.selectNode(br);const position=brRange.comparePoint(mappedRange.startContainer,mappedRange.startOffset);if(position===1)before=br;else if(position===-1&&!after)after=br;}
+      const line=document.createRange();line.selectNodeContents(scope);if(before)line.setStartAfter(before);if(after)line.setEndBefore(after);
+      const contents=line.extractContents();list=document.createElement(kind==='ordered'?'ol':'ul');item=document.createElement('li');
+      if(contents.hasChildNodes())item.append(contents);else item.append(document.createElement('br'));
+      list.append(item);line.insertNode(list);
+      if(scope!==clone&&!scope.textContent.trim()&&scope.querySelector('ol,ul'))scope.replaceWith(...scope.childNodes);
+    }
+    if(kind==='ordered'&&start!==1)list.start=start;
+    if(kind==='task')list.dataset.task='true';
+    replaceEditorContents(clone,caretOffset,0);
+  }
+  function currentListItem(){
+    const selection=getSelection();if(!selection?.rangeCount)return null;
+    const node=selection.anchorNode,element=node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement,item=element?.closest('li');
+    return item&&active?.contains(item)?item:null;
+  }
+  function changeListDepth(outdent=false){
+    if(!restore())return;const item=currentListItem();if(!item)return;
+    if(!outdent&&!item.previousElementSibling)return;
+    document.execCommand(outdent?'outdent':'indent');commit();
+  }
+  function listLineBreak(){if(restore()){document.execCommand('insertLineBreak');commit();}}
+  function autoOrderedList(event){
+    if(event.defaultPrevented||event.isComposing||event.inputType!=='insertText'||event.data!==' '||!event.target.matches('.rich-editor'))return;
+    const editor=event.target,selection=getSelection();if(!selection?.rangeCount||!selection.isCollapsed)return;
+    const r=selection.getRangeAt(0);if(!editor.contains(r.commonAncestorContainer))return;
+    const element=r.startContainer.nodeType===Node.ELEMENT_NODE?r.startContainer:r.startContainer.parentElement;
+    const block=element.closest('p,div,h1,h2,h3,h4,h5,h6,li');
+    const line=r.cloneRange();line.selectNodeContents(block&&editor.contains(block)?block:editor);line.setEnd(r.startContainer,r.startOffset);
+    // A legacy paragraph can contain BR-separated lines, so match only the
+    // current logical line and refuse markers typed in the middle of prose.
+    const fragment=line.cloneContents();fragment.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));
+    const prefix=fragment.textContent,marker=prefix.split('\n').pop();if(!/^[1-9]\d{0,8}\.$/.test(marker))return;
+    if(element.closest('li')&&prefix!==marker)return;
+    event.preventDefault();active=editor;remember();
+    const start=Number(marker.slice(0,-1));
+    const item=currentListItem();
+    // Select just the typed marker, preserving the remainder of this paragraph.
+    const walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),nodes=[];
+    while(walker.nextNode())nodes.push(walker.currentNode);
+    let node=r.startContainer,offset=r.startOffset,remaining=marker.length;
+    if(node.nodeType!==Node.TEXT_NODE){node=node.childNodes[offset-1];while(node?.lastChild)node=node.lastChild;offset=node?.textContent.length||0;}
+    let index=nodes.indexOf(node);if(index<0)return;
+    while(remaining>offset&&index>0){remaining-=offset;node=nodes[--index];offset=node.length;}
+    const remove=r.cloneRange();remove.setStart(node,offset-remaining);selection.removeAllRanges();selection.addRange(remove);
+    document.execCommand('delete');
+    if(item?.isConnected&&item.parentElement.tagName==='OL')item.value=start;
+    else convertCurrentParagraph('ordered',start);
+    commit();
+  }
+  document.addEventListener('beforeinput',autoOrderedList);
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-list-action]');if(!button)return;
+    if(button.dataset.listAction==='linebreak')listLineBreak();else changeListDepth(button.dataset.listAction==='outdent');
+    closeMenus();
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.defaultPrevented||event.isComposing||event.keyCode===229||event.ctrlKey||event.metaKey||event.altKey||!event.target.matches('.rich-editor')||document.body.classList.contains('preview-mode'))return;
+    active=event.target;remember();if(!currentListItem())return;
+    if(event.key==='Tab'){event.preventDefault();changeListDepth(event.shiftKey);}
+    else if(event.key==='Enter'&&event.shiftKey){event.preventDefault();listLineBreak();}
+  });
   function closeMenus(except=null){document.querySelectorAll('.tool-menu[open]').forEach(m=>{if(m!==except)m.open=false;});}
   document.querySelectorAll('.tool-menu').forEach(menu=>{menu.setAttribute('name','editor-tools');menu.addEventListener('toggle',()=>{if(menu.open)closeMenus(menu);});});
   const colors=['#111827','#374151','#6b7280','#9ca3af','#d1d5db','#e5e7eb','#f3f4f6','#ffffff','#7f1d1d','#b91c1c','#dc2626','#ef4444','#f87171','#fca5a5','#fecaca','#fee2e2','#7c2d12','#c2410c','#ea580c','#f97316','#fb923c','#fdba74','#fed7aa','#ffedd5','#713f12','#a16207','#ca8a04','#eab308','#facc15','#fde047','#fef08a','#fef9c3','#14532d','#15803d','#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','#dcfce7','#1e3a8a','#1d4ed8','#2563eb','#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#dbeafe','#581c87','#7e22ce','#9333ea','#a855f7','#c084fc','#d8b4fe','#e9d5ff','#f3e8ff','#831843','#be185d','#db2777','#ec4899','#f472b6','#f9a8d4','#fbcfe8','#fce7f3'];
@@ -307,7 +400,7 @@
   document.addEventListener('change',e=>{if(e.target.matches('[data-block-field="position"]')){data.blocks[+e.target.closest('[data-block-index]').dataset.blockIndex].position=e.target.value;render();save();}if(e.target.id==='fontSizePicker'){if(e.target.value)style({fontSize:e.target.value+'px'});else style({}, {'data-default-size':'true'});}if(e.target.id==='fontFamilyPicker'){data.fontFamily=fontFamilies.has(e.target.value)?e.target.value:'';applyDocumentFont();save();}if(e.target.id==='textTypePicker')textType(e.target.value);});
   document.addEventListener('click',e=>{const t=e.target,menuSummary=t.closest('.tool-menu > summary');if(menuSummary)closeMenus(menuSummary.parentElement);const fmt=t.closest('[data-format]'),kind=t.closest('[data-kind]'),apply=t.closest('[data-apply]'),clear=t.closest('[data-clear]'),list=t.closest('[data-list]'),add=t.closest('[data-add-block]'),action=t.closest('[data-action]');if(fmt)format(fmt.dataset.format);if(kind){const k=kind.dataset.kind,c=kind.dataset.color;if(k==='text')format('foreColor',c);else if(k==='highlight')format('hiliteColor',c);else decorateLine(c,k==='wave'?'wavy':'solid');closeMenus();}if(apply){const input=$('input[type=color]',apply.parentElement);const k=apply.dataset.apply;if(k==='text')format('foreColor',input.value);else if(k==='highlight')format('hiliteColor',input.value);else decorateLine(input.value,k==='wave'?'wavy':'solid');closeMenus();}if(clear){const k=clear.dataset.clear;if(k==='text')format('foreColor','#30383e');else if(k==='highlight')format('hiliteColor','transparent');else clearLineMarks(k==='wave'?'wavy':'solid');closeMenus();}if(list){insertList(list.dataset.list);closeMenus();}if(add)addBlock(add.dataset.addBlock);if(action){const k=action.dataset.action;if(k==='delete'){const i=+action.closest('[data-index]').dataset.index;if(data.paragraphs.length===1){toast('至少保留一个文段');return;}if(!confirm('删除文段和对应分析？'))return;data.paragraphs.splice(i,1);}else{const bi=+action.closest('[data-block-index]').dataset.blockIndex;if(k==='block-delete'){if(!confirm('删除这个栏目？'))return;data.blocks.splice(bi,1);}else{const group=data.blocks.map((b,n)=>b.position===data.blocks[bi].position?n:-1).filter(n=>n>=0),at=group.indexOf(bi),to=group[at+(k==='up'?-1:1)];if(to===undefined)return;[data.blocks[bi],data.blocks[to]]=[data.blocks[to],data.blocks[bi]];}}render();save();}const view=t.closest('[data-view]');if(view){document.body.classList.toggle('preview-mode',view.dataset.view==='preview');document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b===view));closeMenus();}const mode=t.closest('[data-layout]');if(mode){layout=mode.dataset.layout;document.querySelectorAll('[data-layout]').forEach(b=>b.classList.toggle('active',b===mode));paper();}if(!t.closest('.tool-menu'))closeMenus();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenus();});
-  window.noteEditor={remember,format,textType,insertList,adjustFontSize,underline:()=>decorateLine('#b73530','solid',true),wave:()=>decorateLine('#b73530','wavy',true),toggleHighlight,resetSize:()=>style({}, {'data-default-size':'true'})};
+  window.noteEditor={remember,format,textType,insertList,changeListDepth,listLineBreak,adjustFontSize,underline:()=>decorateLine('#b73530','solid',true),wave:()=>decorateLine('#b73530','wavy',true),toggleHighlight,resetSize:()=>style({}, {'data-default-size':'true'})};
   $('#addBtn').addEventListener('click',addParagraph);$('#addBottom').addEventListener('click',addParagraph);$('#printBtn').addEventListener('click',()=>{document.body.classList.add('preview-mode');window.print();});$('#printPreviewBtn').addEventListener('click',()=>window.print());
   $('#newBtn').addEventListener('click',()=>window.noteApp.requestNewDocument(activeDoc.folderId));$('#resetBtn').addEventListener('click',()=>{if(!confirm('恢复示例内容？当前笔记会被替换。'))return;data=normalize(sample);render();save();toast('已恢复示例内容');});
   function parseArticle(txt,ext='txt'){

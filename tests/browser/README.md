@@ -37,6 +37,14 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/formatting.js
 ```
 
+`lists.js` 在 4173 端口验证光标所在整段转换为各类列表、光标和内联格式保留、自定义起始编号、行首输入编号加空格创建列表、Tab／Shift+Tab 调整嵌套、Shift+Enter 插入不编号的说明、空列表项退出、撤销重做、保存刷新、讲义预览及手机工具栏。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/lists.js
+```
+
+`templates.js` 也会验证新建和管理模板窗口按模板名称、正文搜索，以及没有匹配结果时的操作禁用状态。账号、同步、备份与冲突检查需使用隔离的 4175 测试数据目录。
+
 ## 个人文档模板
 
 `templates.js` 使用独立浏览器上下文，在 4173 检查模板保存、默认与空白选择、完整格式复制、原文档与模板独立、重命名、更新、删除、刷新保留、文件库入口及手机布局。登录、账号隔离、多设备同步、备份导入导出、冲突合并在独立的 4175 测试服务上验证。必须按本页第一节启动隔离数据目录，不能将 4175 指向真实用户数据库。
