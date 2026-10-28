@@ -30,10 +30,10 @@
   }
   $('#importBtn').title='从文件或粘贴文本导入';
   $('#importBtn').onclick=()=>{
-    const dialog=newDialog('导入文章','<p class="dialog-copy">支持 Word（.docx）、TXT、Markdown、HTML，也可粘贴正文。Word 按原段落导入，粘贴文本按空行分段。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><button class="btn" id="articleChooseFile">选择文件（含 Word）</button><p class="dialog-copy">旧版 .doc 请先在 Word 中另存为 .docx。Word 导入正文、标题、列表和常用格式，图片、页眉页脚及复杂版式不保留，表格转为文字。</p><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status">等待粘贴正文</p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
+    const dialog=newDialog('导入文章','<p class="dialog-copy">支持 Word（.docx）、TXT、Markdown、HTML，也可粘贴正文。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><button class="btn" id="articleChooseFile">选择文件</button><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status" hidden></p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
     dialog.classList.add('article-import-dialog');
     const input=$('#articlePasteText'),status=$('#articlePasteStatus');
-    input.oninput=()=>{const count=app.parseArticle(input.value).length;status.textContent=count?'将导入 '+count+' 个文段':'等待粘贴正文';};
+    input.oninput=()=>{const count=app.parseArticle(input.value).length;status.hidden=!count;status.textContent=count?'将导入 '+count+' 个文段':'';};
     $('#articleImportCancel').onclick=()=>dialog.close();
     $('#articlePasteForm').onsubmit=e=>{
       e.preventDefault();if(!input.value.trim()){status.textContent='请先粘贴正文';input.focus();return;}
@@ -43,7 +43,7 @@
     $('#importFile').onchange=async e=>{
       const file=e.target.files?.[0];if(!file)return;
       const createNew=$('#articleImportTarget').value==='new',choose=$('#articleChooseFile'),submit=$('#articlePasteForm button[type="submit"]'),targetId=app.getState().activeDoc.id;
-      choose.disabled=submit.disabled=true;status.textContent='正在读取文件…';
+      choose.disabled=submit.disabled=true;status.hidden=false;status.textContent='正在读取文件…';
       try{
         const ext=file.name.split('.').pop().toLowerCase();let paragraphs;
         if(ext==='doc')throw Error('旧版 .doc 暂不支持，请在 Word 中另存为 .docx 后导入。');

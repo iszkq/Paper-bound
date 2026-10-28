@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f5f6f7">
-  <link rel="icon" href="favicon.ico?v=2026.10.28.9" sizes="any"><link rel="icon" type="image/png" href="favicon.png?v=2026.10.28.9" sizes="64x64">
+  <link rel="icon" href="favicon.ico?v=2026.10.28.10" sizes="any"><link rel="icon" type="image/png" href="favicon.png?v=2026.10.28.10" sizes="64x64">
   <title>纸间 · 阅读笔记</title>
-  <link rel="stylesheet" href="styles.css?v=2026.10.28.9">
-  <link rel="stylesheet" href="editor.css?v=2026.10.28.9">
-  <link rel="stylesheet" href="workspace.css?v=2026.10.28.9">
-  <link rel="stylesheet" href="shortcuts.css?v=2026.10.28.9">
+  <link rel="stylesheet" href="styles.css?v=2026.10.28.10">
+  <link rel="stylesheet" href="editor.css?v=2026.10.28.10">
+  <link rel="stylesheet" href="workspace.css?v=2026.10.28.10">
+  <link rel="stylesheet" href="shortcuts.css?v=2026.10.28.10">
 </head>
 <body>
   <div class="app" id="app">
@@ -43,7 +43,7 @@
       <details class="tool-menu" data-palette="underline"><summary aria-label="彩色下划线"><svg class="line-tool-icon" viewBox="0 0 20 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 3v7a5 5 0 0 0 10 0V3"/><path class="line-tool-mark" d="M3 21h14"/></svg> 下划线 <span class="chevron">▾</span></summary><div class="tool-popover"></div></details>
       <details class="tool-menu" data-palette="wave"><summary aria-label="彩色波浪线" title="红色波浪线 Ctrl+Shift+U"><svg class="line-tool-icon" viewBox="0 0 20 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 3v7a5 5 0 0 0 10 0V3"/><path class="line-tool-mark" d="M2 21q2-3 4 0t4 0t4 0t4 0"/></svg> 波浪线 <span class="chevron">▾</span></summary><div class="tool-popover"></div></details>
       <span class="format-divider"></span>
-      <details class="tool-menu"><summary aria-label="列表">☷ 列表 <span class="chevron">▾</span></summary><div class="tool-popover list-popover"><button class="popover-option" data-list="unordered">• 无序列表</button><button class="popover-option" data-list="ordered">1. 有序列表</button><button class="popover-option" data-list="task">☐ 任务列表</button><button class="popover-option" data-list-action="indent">增加一级缩进 · Tab</button><button class="popover-option" data-list-action="outdent">退一级 / 取消列表 · Shift+Tab</button><button class="popover-option" data-list-action="linebreak">插入不编号的说明 · Shift+Enter</button><p class="popover-label">行首输入 1.、2. 等，再按空格创建列表。Enter 继续编号；Shift+Tab 退一级，一级时取消列表，光标在文字中间也可用；空项按 Enter 退出。</p></div></details>
+      <details class="tool-menu"><summary aria-label="列表">☷ 列表 <span class="chevron">▾</span></summary><div class="tool-popover list-popover"><button class="popover-option" data-list="unordered">• 无序列表</button><button class="popover-option" data-list="ordered">1. 有序列表</button><button class="popover-option" data-list="task">☐ 任务列表</button><button class="popover-option" data-list-action="indent">增加一级缩进 · Tab</button><button class="popover-option" data-list-action="outdent">退一级 / 取消列表 · Shift+Tab</button><button class="popover-option" data-list-action="linebreak">插入不编号的说明 · Shift+Enter</button></div></details>
       <button class="format-btn" id="paragraphIndent" title="切换当前段或选中多个段落的预览首行缩进（两字符）；混合状态先统一缩进，再点统一取消" aria-label="首行缩进" aria-pressed="false" disabled><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5h9M3 12h18M3 19h18M3 5h5m-2-2 2 2-2 2"/></svg>首行缩进</button>
       <button class="format-btn" data-format="removeFormat" title="清除所选文字格式" aria-label="清除格式">清除格式</button>
       <button class="format-btn" id="shortcutsToggle" aria-label="键盘快捷键" aria-expanded="false" aria-controls="shortcutsPanel" title="键盘快捷键 Ctrl+Alt+/"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6 9h2m3 0h2m3 0h2M6 12h2m3 0h2m3 0h2M7 16h10"/></svg>快捷键</button>
@@ -83,11 +83,11 @@
     <footer class="library-footer"><span>拖动可排序，拖到文件夹中可归档；也可用 Alt + ↑ / ↓ 排序。</span><button id="logoutBtn" class="text-button">退出当前账号</button></footer>
   </dialog>
   <dialog class="bible-dialog" id="bibleDialog" aria-labelledby="bibleTitle"><header class="bible-header"><div><h2 id="bibleTitle">圣经经文</h2><p id="bibleStatus">正在加载经文…</p></div><button class="small-icon-btn" id="bibleClose" aria-label="关闭">×</button></header><div class="bible-tabs"><button class="active" data-bible-tab="browse">卷章浏览</button><button data-bible-tab="search">经文搜索</button></div><section class="bible-controls" id="bibleBrowseControls"><label class="bible-testament-control">约别<select id="bibleTestament" aria-label="约别"><option value="旧约">旧约</option><option value="新约">新约</option></select></label><label class="bible-book-control">卷名<select id="bibleBook" aria-label="卷名"></select></label><label>章节<select id="bibleChapter"></select></label></section><section class="bible-controls" id="bibleSearchControls" hidden><label class="bible-search">搜索经文<input id="bibleQuery" type="search" placeholder="输入多个关键词，以空格分隔"></label><button id="bibleSearchButton" class="btn">搜索</button></section><div class="bible-results" id="bibleResults" aria-live="polite"></div><footer class="bible-footer"><span id="bibleSelectedCount">已选 0 节</span><button id="bibleClearSelection" class="btn">清除多选</button><button id="bibleCopy" class="btn btn-primary">复制所选经文</button></footer></dialog>
-  <script src="compat.js?v=2026.10.28.9"></script>
-  <script src="engine.js?v=2026.10.28.9"></script>
-  <script src="workspace.js?v=2026.10.28.9"></script>
-  <script src="library-order.js?v=2026.10.28.9"></script>
-  <script src="cloud.js?v=2026.10.28.9"></script>
-  <script src="shortcuts.js?v=2026.10.28.9"></script>
+  <script src="compat.js?v=2026.10.28.10"></script>
+  <script src="engine.js?v=2026.10.28.10"></script>
+  <script src="workspace.js?v=2026.10.28.10"></script>
+  <script src="library-order.js?v=2026.10.28.10"></script>
+  <script src="cloud.js?v=2026.10.28.10"></script>
+  <script src="shortcuts.js?v=2026.10.28.10"></script>
 </body>
 </html>

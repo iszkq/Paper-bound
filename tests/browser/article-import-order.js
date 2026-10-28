@@ -6,11 +6,18 @@ async page => {
   try{
     await test.goto('http://127.0.0.1:4173/index.html');await test.waitForFunction(()=>window.noteCloud);await test.evaluate(()=>noteCloud.ready);
     const original=await state();
+    await test.locator('[aria-label="列表"]').click();
+    check(await test.locator('.list-popover .popover-label').count()===0,'List menu repeats instructions already shown on its actions');
+    await test.locator('[aria-label="列表"]').click();
     await test.locator('#importBtn').click();
     check(await test.locator('#actionDialog').isVisible(),'Import dialog missing');
+    check(await test.locator('#articlePasteStatus').isHidden(),'Empty paste status should stay hidden');
+    check((await test.locator('#articleChooseFile').innerText()).trim()==='选择文件','File button repeats the supported-format description');
+    check(await test.locator('#actionDialog').locator('text=图片、页眉页脚及复杂版式不保留').count()===0,'Import dialog contains redundant Word limitations');
     await test.locator('#articlePasteTitle').fill('粘贴导入检查');
     await test.locator('#articlePasteText').fill('第一段正文\n保留段内换行\n\n第二段 <script>文本</script>\n\n第三段正文');
     check((await test.locator('#articlePasteStatus').innerText()).includes('3 个文段'),'Paste paragraph count is wrong');
+    check(await test.locator('#articlePasteStatus').isVisible(),'Paste paragraph count should appear after typing');
     await test.locator('#articlePasteForm button[type=submit]').click();
     let library=await state(),doc=library.documents.find(d=>d.id===library.activeId);
     check(library.documents.length===original.documents.length+1,'Paste should create a new document by default');

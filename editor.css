@@ -31,7 +31,6 @@
 .palette-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin: 12px 0; }
 .swatch { height: 25px; width: 25px; border: 1px solid rgb(0 0 0 / 7%); border-radius: 3px; background: var(--swatch); cursor: pointer; }
 .swatch:hover { outline: 2px solid #747a80; outline-offset: 2px; }
-.popover-label { margin: 2px 0 10px; font-size: 12px; color: var(--muted); }
 .popover-option { display: block; width: 100%; min-height: 38px; border: 0; border-radius: 4px; text-align: left; padding: 7px 9px; background: transparent; font-size: 13px; }
 .popover-option:hover { background: var(--raised); }
 .popover-option:disabled { color: var(--muted); opacity: .5; cursor: default; background: transparent; }
