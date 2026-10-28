@@ -224,7 +224,16 @@
       cut=Math.min(end,Math.max(cut,offset+1));
       pages.push({start:offset,end:cut,repeatColumns,height:Math.ceil(Math.max(pageHeight,headingHeight+cut-offset+bottomPadding+footer))});offset=cut;
     }while(offset<end-.01);
-    return {width:rect.width,headerBottom,columnsTop,columnsHeight,bottomPadding,footer,pages};
+    // Avoid a mostly empty second image, while keeping longer documents paged.
+    let mode='a4';
+    if(pages.length===2){
+      const continuation=pages[1],capacity=Math.max(64,pageHeight-headerBottom-(continuation.repeatColumns?columnsHeight:0)-bottomPadding-footer);
+      if(continuation.end-continuation.start<capacity/2){
+        pages.splice(0,2,{start:headerBottom,end,repeatColumns:false,height:Math.ceil(Math.max(pageHeight,end+bottomPadding+footer))});
+        mode='long';
+      }
+    }
+    return {width:rect.width,headerBottom,columnsTop,columnsHeight,bottomPadding,footer,pages,mode};
   }
   async function prepareImageExport(){
     const element=$('#paper');element.getBoundingClientRect();await document.fonts.ready;
@@ -245,14 +254,14 @@
   app.prepareImageExport=prepareImageExport;
   // Preview sizing and image export share the same layout and document fonts.
   const toolbar=$('.preview-toolbar');
-  const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';exportButton.title='按 A4 竖版比例分页，每张保留标题和顶部信息，正文连续衔接';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
+  const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';exportButton.title='自动排版：A4 试排仅两页且第二页内容不足半页时合为一张长图，其他情况按 A4 导出；每张保留标题和顶部信息';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
   const scaleLabel=document.createElement('label');scaleLabel.className='preview-scale-label';scaleLabel.innerHTML='阅读字号 <select id="previewReadingSize" aria-label="预览阅读字号"><option value="17">17</option><option value="19">19</option><option value="22">22</option><option value="24">24</option></select>';toolbar.insertBefore(scaleLabel,exportButton);
   $('#previewReadingSize').onchange=e=>$('#paper').style.setProperty('--preview-reading-size',e.target.value+'px');
   exportButton.onclick=async()=>{
     const button=exportButton;button.disabled=true;button.textContent='正在生成图片…';
     try{const prepared=await prepareImageExport(),count=prepared.pages.length;
       for(let i=0;i<count;i++){button.textContent='正在导出 '+(i+1)+' / '+count+'…';const canvas=await prepared.renderPage(i);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('图片生成失败。');download(blob,(app.getState().data.title||'阅读笔记')+(count>1?'-'+String(i+1).padStart(String(count).length,'0'):'')+'.png');canvas.width=0;canvas.height=0;}
-      app.toast(count>1?'已分页导出 '+count+' 张图片，每张均保留标题；如下载受阻，请允许浏览器下载多个文件。':'图片已导出');
+      app.toast(count>1?'已分页导出 '+count+' 张图片，每张均保留标题；如下载受阻，请允许浏览器下载多个文件。':prepared.mode==='long'?'第二页内容不足半页，已合为一张长图导出。':'图片已导出');
     }catch(err){app.toast(err.message||'图片导出失败，请重试。');}finally{button.disabled=false;button.textContent='导出图片';}
   };
   // CSV is parsed as data, including quoted fields, commas and embedded newlines.
