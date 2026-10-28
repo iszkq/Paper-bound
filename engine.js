@@ -56,7 +56,7 @@
     {text:'一、打开文件库\n点击顶部「文件库」，可以新建文件夹、打开已有文件夹，也可以直接新建文档。点击文档名称即可打开，编辑中的内容会自动保存在本机。',note:'可以先新建一个文件夹，例如「阅读笔记」或「查经记录」。文档右侧的「⋯」支持重命名、移动、复制和删除。'},
     {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可搜索并选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
     {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 退一级，一级时取消列表，光标在文字中间也可用。Shift+Enter 插入不编号的说明；选择「普通文本」可直接退出列表。正文独立段落在预览中首行缩进两字符，可用工具栏「首行缩进」按段关闭或恢复。选中来源文字后，单击格式刷刷一次，双击连续刷，Esc 退出。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
-    {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。长文图片会自动分页，每张重复标题和顶部信息，正文连续排下去。还可以导入 TXT、Markdown 和 HTML 文章。'},
+    {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。长文图片会自动分页，每张重复标题和顶部信息，正文连续排下去。还可以导入 Word（.docx）、TXT、Markdown 和 HTML 文章。'},
     {text:'五、登录与同步\n登录后，文档和文件夹按账号保存在服务端，并自动同步。未登录时只保存在本机。',note:'网络中断时，修改先保存在本机，重新连接后继续同步。遇到多端冲突可保留两个版本。旧的本机文档可在账号设置中导入，仍建议定期下载备份。'}]})};}
   function blankLibrary(){const old=session===GUEST?readJson(KEY,null):null,guide=guideDocument(),docs=[guide];if(old)docs.push({id:noteRuntime.uuid(),title:old.title||'阅读札记',folderId:'',data:normalize(old)});return {folders:[],documents:docs,activeId:old?docs[1].id:guide.id,guideVersion:1};}
   function normalizeTemplates(lib){
@@ -648,7 +648,21 @@
   $('#newBtn').addEventListener('click',()=>window.noteApp.requestNewDocument(activeDoc.folderId));$('#resetBtn').addEventListener('click',()=>{if(!confirm('恢复示例内容？当前笔记会被替换。'))return;data=normalize(sample);render();save();toast('已恢复示例内容');});
   function parseArticle(txt,ext='txt'){
       let ps;
-      if(['html','htm'].includes(ext)){
+      if(ext==='docx'){
+        const doc=new DOMParser().parseFromString(txt,'text/html'),blocks=[];
+        const collect=node=>{
+          if(node.nodeType===Node.TEXT_NODE){if(node.textContent.trim())blocks.push('<p>'+esc(node.textContent.trim())+'</p>');return;}
+          if(node.nodeType!==Node.ELEMENT_NODE)return;
+          if(/^(SCRIPT|STYLE|IFRAME|OBJECT|IMG)$/.test(node.tagName))return;
+          if(/^(P|H[1-6]|UL|OL)$/.test(node.tagName)){if(node.textContent.trim())blocks.push(node.outerHTML);return;}
+          if(node.tagName==='TR'){
+            if(node.textContent.trim())blocks.push('<p>'+Array.from(node.children,cell=>esc(cell.textContent.trim())).join(' · ')+'</p>');return;
+          }
+          for(const child of node.childNodes)collect(child);
+        };
+        for(const child of doc.body.childNodes)collect(child);
+        ps=blocks.map(html=>({html:clean(html),noteHtml:''})).filter(p=>p.html);
+      }else if(['html','htm'].includes(ext)){
         const doc=new DOMParser().parseFromString(txt,'text/html');
         const elements=Array.from(doc.querySelectorAll('p'));
         if(!elements.length)elements.push(...doc.body.children);

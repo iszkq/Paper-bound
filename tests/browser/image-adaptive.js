@@ -10,42 +10,44 @@ async page => {
   await test.locator('[data-view="preview"]').click();const results=[];
   for(const layout of ['handout','table']){
    await test.locator('[data-layout="'+layout+'"]').click();await test.evaluate(()=>document.fonts.ready);
-   // Control the measured content extent to test the exact half-page boundary.
-   // Keep the real preview structure, header, columns, fonts and snapshot renderer.
-   for(const ratio of [.25,.499,.5,.501,.8,1.1]){
-    const result=await test.evaluate(async ratio=>{
+   // Control body extent to exercise final-page capacity with real headers and rendering.
+   for(const fullLongPages of [0,1,3])for(const tailRatio of [.25,.999,1,1.001,1.3]){
+    const result=await test.evaluate(async({fullLongPages,tailRatio})=>{
      const root=document.querySelector('#paper'),header=root.querySelector('.paper-header,.paper-table-header'),body=root.lastElementChild;
      header.style.height=Math.ceil(header.getBoundingClientRect().height)+'px';
-     const base=await noteApp.prepareImageExport(),pageHeight=Math.ceil(base.width*Math.SQRT2),capacity=pageHeight-base.headerBottom-base.columnsHeight-base.bottomPadding-base.footer;
-     const firstEnd=pageHeight-base.bottomPadding-base.footer,requestedEnd=firstEnd+capacity*ratio,bodyTop=body.getBoundingClientRect().top-root.getBoundingClientRect().top;
+     const base=await noteApp.prepareImageExport(),a4Height=Math.ceil(base.width*Math.SQRT2),longHeight=Math.ceil(base.width*2.2),tailHeading=base.headerBottom+(fullLongPages?base.columnsHeight:0),tailCapacity=a4Height-tailHeading-base.bottomPadding-base.footer;
+     const tailStart=fullLongPages?longHeight-base.bottomPadding-base.footer+(fullLongPages-1)*(longHeight-base.headerBottom-base.columnsHeight-base.bottomPadding-base.footer):base.headerBottom;
+     const requestedEnd=tailStart+tailCapacity*tailRatio,bodyTop=body.getBoundingClientRect().top-root.getBoundingClientRect().top;
      body.style.height=(requestedEnd-bodyTop)+'px';
      const end=body.getBoundingClientRect().bottom-root.getBoundingClientRect().top,prepared=await noteApp.prepareImageExport();window.adaptiveCheck=prepared;
-     return {ratio,actualRatio:(end-firstEnd)/capacity,mode:prepared.mode,pages:prepared.pages,width:prepared.width,pageHeight,headerBottom:prepared.headerBottom,end,bottomPadding:prepared.bottomPadding,footer:prepared.footer};
-    },ratio);
-    const merged=ratio<.5,expectedPages=merged?1:ratio>1?3:2;
-    check(Math.abs(result.actualRatio-ratio)<.0001,'Fixture missed requested threshold');
-    check(result.mode===(merged?'long':'a4'),'Wrong automatic mode: '+JSON.stringify(result));
-    check(result.pages.length===expectedPages,'Wrong automatic page count: '+JSON.stringify(result));
+     return {pages:prepared.pages,mode:prepared.mode,width:prepared.width,a4Height,longHeight,headerBottom:prepared.headerBottom,end,actualRatio:(end-tailStart)/tailCapacity,bottomPadding:prepared.bottomPadding,footer:prepared.footer};
+    },{fullLongPages,tailRatio});
+    check(Math.abs(result.actualRatio-tailRatio)<.0001,'Fixture missed requested threshold');
+    check(result.pages.length===fullLongPages+1,'Wrong automatic page count: '+JSON.stringify(result));
     check(result.pages[0].start===result.headerBottom&&result.pages.at(-1).end===result.end,'Content extent changed');
-    if(merged){
-     check(result.pages[0].height>result.pageHeight,'Merged image did not grow');
-     check(result.pages[0].height===Math.ceil(result.end+result.bottomPadding+result.footer),'Merged image has excessive blank tail');
-    }else check(result.pages.every(p=>p.height===result.pageHeight),'A4 pages changed size');
+    const tail=result.pages.at(-1),longTail=tailRatio>1;
+    check(tail.kind===(longTail?'long':'a4'),'Wrong final page kind: '+JSON.stringify(result));
+    check(longTail?tail.height>result.a4Height:tail.height===result.a4Height,'Wrong final page height');
+    check(result.pages.every(p=>p.height<=result.longHeight),'Image exceeded long-page limit');
+    check(result.pages.slice(0,-1).every(p=>p.kind==='long'&&p.height===result.longHeight),'Full pages did not use long images');
     for(let i=1;i<result.pages.length;i++)check(result.pages[i].start===result.pages[i-1].end&&result.pages[i].repeatColumns,'Continuation omitted body or headings');
-    results.push({layout,ratio:result.actualRatio,mode:result.mode,pages:result.pages.length});
-    if(ratio===.25){
+    results.push({layout,fullLongPages,tailRatio:result.actualRatio,kinds:result.pages.map(p=>p.kind)});
+    if(fullLongPages===1&&tailRatio===.25){
      const downloads=[],capture=d=>downloads.push(d);test.on('download',capture);
      await test.locator('#imageExportBtn').click();await test.waitForFunction(()=>!document.querySelector('#imageExportBtn').disabled,{},{timeout:120000});
-     for(let attempt=0;!downloads.length&&attempt<50;attempt++)await test.waitForTimeout(100);
-     check(downloads.length===1,'Merged export produced multiple downloads');
-     check(downloads[0].suggestedFilename()==='按内容自动导出验证.png','Merged download unexpectedly has a page suffix');
-     const raster=await test.evaluate(async()=>{const p=window.adaptiveCheck,c=await p.renderPage(0),ctx=c.getContext('2d'),pixels=ctx.getImageData(0,0,c.width,Math.ceil(p.headerBottom*2)+100).data;let ink=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]<240||pixels[i+1]<240||pixels[i+2]<240)ink++;return {width:c.width,height:c.height,ink};});
-     check(raster.width===Math.ceil(result.width*2)&&raster.height===Math.ceil(result.pages[0].height*2)&&raster.ink>200,'Merged raster is blank or has incorrect dimensions');
-     await downloads[0].saveAs('output/playwright/adaptive-boundary-'+layout+'.png');test.off('download',capture);
+     for(let attempt=0;downloads.length<2&&attempt<50;attempt++)await test.waitForTimeout(100);
+     check(downloads.length===2,'Mixed export did not download both pages');
+     for(let i=0;i<2;i++){check(downloads[i].suggestedFilename()==='按内容自动导出验证-'+(i+1)+'.png','Wrong mixed download filename');await downloads[i].saveAs('output/playwright/adaptive-boundary-'+layout+'-'+(i+1)+'.png');}
+     const raster=await test.evaluate(async()=>{
+      const p=window.adaptiveCheck,checks=[];
+      for(let i=0;i<p.pages.length;i++){const c=await p.renderPage(i),pixels=c.getContext('2d').getImageData(0,0,c.width,Math.ceil(p.headerBottom*2)).data;let ink=0;for(let at=0;at<pixels.length;at+=4)if(pixels[at]<240||pixels[at+1]<240||pixels[at+2]<240)ink++;checks.push({width:c.width,height:c.height,ink});c.width=c.height=0;}
+      return checks;
+     });
+     check(raster.every((r,i)=>r.width===Math.ceil(result.width*2)&&r.height===Math.ceil(result.pages[i].height*2)&&r.ink>200),'Mixed raster is blank or has incorrect dimensions');test.off('download',capture);
     }
    }
   }
   check(!errors.length,'Browser errors: '+errors.join(';'));
-  return {passed:true,results,mergedDownloads:true,errors};
+  return {passed:true,results,mixedDownloads:true,errors};
  }finally{await context.close();}
 }

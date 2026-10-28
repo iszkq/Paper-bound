@@ -17,9 +17,20 @@
     dialog.addEventListener('close',()=>{pressedOutside=false;});
   }
   closeOnBackdrop($('#libraryDialog'));
+  let wordParserLoading=null;
+  function loadWordParser(){
+    if(window.mammoth)return Promise.resolve(window.mammoth);
+    if(!wordParserLoading)wordParserLoading=new Promise((resolve,reject)=>{
+      const script=document.createElement('script'),workspaceURL=new URL(document.querySelector('script[src*="workspace.js"]').src);
+      script.src=new URL('vendor/mammoth.browser.min.js'+workspaceURL.search,workspaceURL).href;
+      script.onload=()=>{if(window.mammoth)resolve(window.mammoth);else{wordParserLoading=null;script.remove();reject(Error('Word 解析器加载失败，请刷新重试。'));}};
+      script.onerror=()=>{wordParserLoading=null;script.remove();reject(Error('Word 解析器加载失败，请检查网络后重试。'));};document.head.append(script);
+    });
+    return wordParserLoading;
+  }
   $('#importBtn').title='从文件或粘贴文本导入';
   $('#importBtn').onclick=()=>{
-    const dialog=newDialog('导入文章','<p class="dialog-copy">选择文件，或直接粘贴正文。空行会分成不同文段。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><button class="btn" id="articleChooseFile">选择 TXT / Markdown / HTML 文件</button><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status">等待粘贴正文</p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
+    const dialog=newDialog('导入文章','<p class="dialog-copy">支持 Word（.docx）、TXT、Markdown、HTML，也可粘贴正文。Word 按原段落导入，粘贴文本按空行分段。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><button class="btn" id="articleChooseFile">选择文件（含 Word）</button><p class="dialog-copy">旧版 .doc 请先在 Word 中另存为 .docx。Word 导入正文、标题、列表和常用格式，图片、页眉页脚及复杂版式不保留，表格转为文字。</p><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status">等待粘贴正文</p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
     dialog.classList.add('article-import-dialog');
     const input=$('#articlePasteText'),status=$('#articlePasteStatus');
     input.oninput=()=>{const count=app.parseArticle(input.value).length;status.textContent=count?'将导入 '+count+' 个文段':'等待粘贴正文';};
@@ -31,12 +42,27 @@
     $('#articleChooseFile').onclick=()=>$('#importFile').click();
     $('#importFile').onchange=async e=>{
       const file=e.target.files?.[0];if(!file)return;
-      const createNew=$('#articleImportTarget').value==='new';
+      const createNew=$('#articleImportTarget').value==='new',choose=$('#articleChooseFile'),submit=$('#articlePasteForm button[type="submit"]'),targetId=app.getState().activeDoc.id;
+      choose.disabled=submit.disabled=true;status.textContent='正在读取文件…';
       try{
-        const paragraphs=app.parseArticle(await file.text(),file.name.split('.').pop().toLowerCase());
+        const ext=file.name.split('.').pop().toLowerCase();let paragraphs;
+        if(ext==='doc')throw Error('旧版 .doc 暂不支持，请在 Word 中另存为 .docx 后导入。');
+        if(!['docx','txt','md','markdown','html','htm'].includes(ext))throw Error('请选择 Word（.docx）、TXT、Markdown 或 HTML 文件。');
+        if(file.size>20*1024*1024)throw Error('文件超过 20 MB，请拆分后再导入。');
+        if(ext==='docx'){
+          status.textContent='正在解析 Word 正文…';const parser=await loadWordParser();
+          let result;
+          try{result=await parser.convertToHtml({arrayBuffer:await file.arrayBuffer()},{styleMap:['u => u','strike => s',"highlight[color='yellow'] => span[style='background-color:#ffff00']"],convertImage:parser.images.imgElement(()=>Promise.resolve({src:''})),externalFileAccess:false});}
+          catch{throw Error('无法读取此 Word 文件，请确认它是未加密且完整的 .docx 文件。');}
+          paragraphs=app.parseArticle(result.value,'docx');
+        }else paragraphs=app.parseArticle(await file.text(),ext);
+        if(!dialog.open)return;
+        if(!createNew&&app.getState().activeDoc.id!==targetId)throw Error('当前文档已切换，请重新选择导入目标。');
+        if(!paragraphs.length)throw Error('文件中没有可导入的文字正文。');
         if(app.importArticle(paragraphs,file.name.replace(/\.[^.]+$/,''),createNew))dialog.close();
-      }catch{status.textContent='文件读取失败，请使用 TXT、Markdown 或 HTML 文件。';}
-      finally{e.target.value='';}
+        else status.textContent='已取消导入，原文档保持不变。';
+      }catch(err){status.textContent=err.message||'文件读取失败，请重试。';}
+      finally{e.target.value='';choose.disabled=submit.disabled=false;}
     };
   };
   const templateOptions=(templates,selected='')=>templates.map(t=>'<option value="'+esc(t.id)+'" '+(t.id===selected?'selected':'')+'>'+esc(t.name)+(t.id===app.getState().library.defaultTemplateId?'（默认）':'')+'</option>').join('');
@@ -193,10 +219,10 @@
     };
     return {render,height:rect.height,width:rect.width};
   }
-  function imagePagePlan(element,ratio=Math.SQRT2){
+  function imagePagePlan(element){
     const rect=element.getBoundingClientRect(),css=getComputedStyle(element),header=element.querySelector('.paper-header,.paper-table-header'),columns=element.querySelector('.paper-columns-head');
     const headerBottom=header.getBoundingClientRect().bottom-rect.top,columnsTop=columns.getBoundingClientRect().top-rect.top,columnsHeight=columns.getBoundingClientRect().height;
-    const bottomPadding=Math.max(32,parseFloat(css.paddingBottom)),footer=24,pageHeight=Math.ceil(rect.width*ratio),blocked=[];
+    const bottomPadding=Math.max(32,parseFloat(css.paddingBottom)),footer=24,a4Height=Math.ceil(rect.width*Math.SQRT2),longHeight=Math.ceil(rect.width*2.2),blocked=[];
     const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);
     while(walker.nextNode()){
       const node=walker.currentNode;if(!node.textContent.trim())continue;
@@ -204,14 +230,16 @@
       for(const line of range.getClientRects())if(line.height&&line.width)blocked.push({start:line.top-rect.top-1,end:line.bottom-rect.top+6});
     }
     // Short headings stay together, and any possible cut must clear both columns.
-    for(const heading of element.querySelectorAll('h2,h3,h4,h5,h6')){const box=heading.getBoundingClientRect();if(box.height<pageHeight/3)blocked.push({start:box.top-rect.top-1,end:box.bottom-rect.top+6});}
+    for(const heading of element.querySelectorAll('h2,h3,h4,h5,h6')){const box=heading.getBoundingClientRect();if(box.height<a4Height/3)blocked.push({start:box.top-rect.top-1,end:box.bottom-rect.top+6});}
     blocked.sort((a,b)=>a.start-b.start);const bands=[];
     for(const band of blocked){const previous=bands.at(-1);if(previous&&band.start<=previous.end)previous.end=Math.max(previous.end,band.end);else bands.push({...band});}
     const end=Math.max(headerBottom,element.lastElementChild.getBoundingClientRect().bottom-rect.top),pages=[];
     const boundaries=Array.from(element.querySelectorAll('.content-pair,.paper-custom-block,.paper-endnotes'),node=>node.getBoundingClientRect().top-rect.top);
     let offset=headerBottom;
     do {
-      const repeatColumns=pages.length>0&&offset>=columnsTop+columnsHeight-1,headingHeight=headerBottom+(repeatColumns?columnsHeight:0),capacity=Math.max(64,pageHeight-headingHeight-bottomPadding-footer);
+      const repeatColumns=pages.length>0&&offset>=columnsTop+columnsHeight-1,headingHeight=headerBottom+(repeatColumns?columnsHeight:0);
+      // Full pages use a bounded long-image size; a short final page uses A4.
+      const remainingHeight=headingHeight+end-offset+bottomPadding+footer,pageHeight=remainingHeight<=a4Height?a4Height:longHeight,capacity=Math.max(64,pageHeight-headingHeight-bottomPadding-footer);
       let cut=Math.min(end,offset+capacity);
       if(cut<end){
         const preferred=boundaries.filter(y=>y>offset+capacity*.7&&y<=cut&&!bands.some(b=>b.start<y&&b.end>y));
@@ -222,17 +250,10 @@
         }
       }
       cut=Math.min(end,Math.max(cut,offset+1));
-      pages.push({start:offset,end:cut,repeatColumns,height:Math.ceil(Math.max(pageHeight,headingHeight+cut-offset+bottomPadding+footer))});offset=cut;
+      const height=Math.ceil(Math.max(a4Height,cut<end?pageHeight:headingHeight+cut-offset+bottomPadding+footer));
+      pages.push({start:offset,end:cut,repeatColumns,height,kind:height>a4Height?'long':'a4'});offset=cut;
     }while(offset<end-.01);
-    // Avoid a mostly empty second image, while keeping longer documents paged.
-    let mode='a4';
-    if(pages.length===2){
-      const continuation=pages[1],capacity=Math.max(64,pageHeight-headerBottom-(continuation.repeatColumns?columnsHeight:0)-bottomPadding-footer);
-      if(continuation.end-continuation.start<capacity/2){
-        pages.splice(0,2,{start:headerBottom,end,repeatColumns:false,height:Math.ceil(Math.max(pageHeight,end+bottomPadding+footer))});
-        mode='long';
-      }
-    }
+    const kinds=new Set(pages.map(page=>page.kind)),mode=kinds.size>1?'mixed':pages[0].kind;
     return {width:rect.width,headerBottom,columnsTop,columnsHeight,bottomPadding,footer,pages,mode};
   }
   async function prepareImageExport(){
@@ -254,14 +275,14 @@
   app.prepareImageExport=prepareImageExport;
   // Preview sizing and image export share the same layout and document fonts.
   const toolbar=$('.preview-toolbar');
-  const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';exportButton.title='自动排版：A4 试排仅两页且第二页内容不足半页时合为一张长图，其他情况按 A4 导出；每张保留标题和顶部信息';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
+  const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';exportButton.title='按内容自动分页：前面使用适度长图，末页能放进 A4 就用 A4，否则按内容加长；每张保留标题和顶部信息';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
   const scaleLabel=document.createElement('label');scaleLabel.className='preview-scale-label';scaleLabel.innerHTML='阅读字号 <select id="previewReadingSize" aria-label="预览阅读字号"><option value="17">17</option><option value="19">19</option><option value="22">22</option><option value="24">24</option></select>';toolbar.insertBefore(scaleLabel,exportButton);
   $('#previewReadingSize').onchange=e=>$('#paper').style.setProperty('--preview-reading-size',e.target.value+'px');
   exportButton.onclick=async()=>{
     const button=exportButton;button.disabled=true;button.textContent='正在生成图片…';
     try{const prepared=await prepareImageExport(),count=prepared.pages.length;
       for(let i=0;i<count;i++){button.textContent='正在导出 '+(i+1)+' / '+count+'…';const canvas=await prepared.renderPage(i);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('图片生成失败。');download(blob,(app.getState().data.title||'阅读笔记')+(count>1?'-'+String(i+1).padStart(String(count).length,'0'):'')+'.png');canvas.width=0;canvas.height=0;}
-      app.toast(count>1?'已分页导出 '+count+' 张图片，每张均保留标题；如下载受阻，请允许浏览器下载多个文件。':prepared.mode==='long'?'第二页内容不足半页，已合为一张长图导出。':'图片已导出');
+      app.toast(count>1?'已按内容分页导出 '+count+' 张图片，每张均保留标题；如下载受阻，请允许浏览器下载多个文件。':prepared.mode==='long'?'已按内容导出一张长图。':'图片已导出');
     }catch(err){app.toast(err.message||'图片导出失败，请重试。');}finally{button.disabled=false;button.textContent='导出图片';}
   };
   // CSV is parsed as data, including quoted fields, commas and embedded newlines.
