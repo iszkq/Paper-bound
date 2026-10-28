@@ -74,3 +74,9 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 ```sh
 npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraph-indent.js
 ```
+
+`paragraph-indent-batch.js` 验证同一编辑框内连续选择多个段落统一取消／恢复缩进，覆盖混合状态、局部与反向选择、刚好结束在下一段开头、P／DIV／直接文字与 BR／跨行内联标注、选中空段、自动跳过列表和标题、全选、撤销重做、保存刷新及两种预览布局。运行：
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraph-indent-batch.js
+```

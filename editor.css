@@ -13,6 +13,7 @@
 .format-btn, .tool-menu > summary { min-width: 36px; height: 36px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid transparent; border-radius: 5px; color: #444c51; background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .format-btn:hover, .tool-menu > summary:hover, .tool-menu[open] > summary { background: #f0f2f3; }
 .format-btn[aria-pressed="true"] { background: var(--red-soft); color: var(--red); }
+.format-btn[aria-pressed="mixed"] { background: var(--red-soft); color: var(--red); border-color: currentColor; border-style: dashed; }
 .format-btn:disabled { opacity: .45; cursor: default; }
 #formatPainter[data-locked="true"] { border-color: currentColor; }
 .format-painter-active .rich-editor, .format-painter-active .rich-editor * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='white' stroke='%2330383e' stroke-width='1.5' stroke-linejoin='round' d='M8 2h13v7H8zM10 9v4h3v7h3v-7h3V9'/%3E%3Cpath stroke='%2330383e' stroke-width='1.5' d='M3 13v8m-2-8h4m-4 8h4M12 2v4m5-4v4'/%3E%3C/svg%3E") 3 17, crosshair; }

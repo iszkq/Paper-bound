@@ -165,14 +165,40 @@
     const setting=element.closest('[data-first-indent]');
     return setting&&editor.contains(setting)?setting.dataset.firstIndent==='on':editor.matches('.paragraph-text');
   }
+  function paragraphIndentTargets(editor,selection){
+    const targets=[];
+    const add=(node,offset=0)=>{
+      const element=node.nodeType===Node.ELEMENT_NODE?node:node.parentElement;
+      if(element.closest('li,h1,h2,h3,h4,h5,h6,[data-format-boundary]'))return;
+      let block=element;
+      while(block!==editor&&(!block.matches('p,div')||block.hasAttribute('data-format-operation')))block=block.parentElement;
+      const line=document.createRange();
+      if(block!==editor&&!block.querySelector('p,div,ol,ul,h1,h2,h3,h4,h5,h6'))line.selectNodeContents(block);
+      else {block=null;const caret=document.createRange();caret.setStart(node,offset);caret.collapse(true);const paragraph=currentParagraphRange(editor,caret);line.setStart(paragraph.startContainer,paragraph.startOffset);line.setEnd(paragraph.endContainer,paragraph.endOffset);}
+      if(targets.some(target=>target.line.compareBoundaryPoints(Range.START_TO_START,line)===0&&target.line.compareBoundaryPoints(Range.END_TO_END,line)===0))return;
+      targets.push({block,line,enabled:paragraphIndentEnabled(element,editor)});
+    };
+    if(selection.collapsed)add(selection.startContainer,selection.startOffset);
+    else {
+      for(const {node,start} of selectionTextSegments(editor,selection))add(node,start);
+      // Include empty selected paragraphs, but exclude a paragraph touched only
+      // by the end boundary (for example Shift+Down to its first character).
+      for(const block of editor.querySelectorAll('p,div')){
+        if(block.textContent||block.querySelector('p,div,ol,ul,h1,h2,h3,h4,h5,h6')||block.hasAttribute('data-format-operation'))continue;
+        const box=document.createRange();box.selectNode(block);
+        if(selection.compareBoundaryPoints(Range.END_TO_START,box)<0&&selection.compareBoundaryPoints(Range.START_TO_END,box)>0)add(block);
+      }
+    }
+    return targets.sort((a,b)=>a.line.compareBoundaryPoints(Range.START_TO_START,b.line));
+  }
   function syncToolbar(){
     if(painter){$('#formatHint').textContent=painter.locked?'格式刷已锁定：可连续刷选文字 · Esc 退出':'格式刷：刷选目标文字，单击可刷一个词 · Esc 取消';return;}
     // Native select controls keep their own focus while an option is being chosen.
     if(document.activeElement?.closest('.rich-toolbar'))return;
     const elements=active?.isConnected&&range?selectionElements(range,active):[];
-    const indent=$('#paragraphIndent'),element=elements[0];
-    indent.disabled=!element||!!element.closest('li,h1,h2,h3,h4,h5,h6');
-    indent.setAttribute('aria-pressed',String(!indent.disabled&&paragraphIndentEnabled(element,active)));
+    const indent=$('#paragraphIndent'),targets=elements.length?paragraphIndentTargets(active,range):[],states=new Set(targets.map(target=>target.enabled));
+    indent.disabled=!targets.length;
+    indent.setAttribute('aria-pressed',states.size>1?'mixed':String(states.has(true)));
     const uniform=values=>new Set(values).size===1?values[0]:'mixed';
     const types=elements.map(el=>{const block=el.closest('h1,h2,h3,h4,h5,h6');return block&&active.contains(block)?block.tagName.toLowerCase():'p';});
     $('#textTypePicker').value=elements.length?uniform(types):'p';
@@ -195,20 +221,32 @@
   function format(cmd,val=null){if(!restore())return;document.execCommand('styleWithCSS',false,true);document.execCommand(cmd,false,val);commit();}
   function textType(tag){if(!/^(p|h[1-6])$/.test(tag)||!restore())return;if(tag==='p'&&currentListItem()){unwrapListItem(currentListItem());return;}document.execCommand('formatBlock',false,tag);commit();}
   function toggleParagraphIndent(){
-    if(!restore())return;const r=getSelection().getRangeAt(0),element=selectionElements(r,active)[0];
-    if(element.closest('li,h1,h2,h3,h4,h5,h6'))return;
-    const enabled=!paragraphIndentEnabled(element,active),{start,length}=selectionOffsets(active,r),clone=active.cloneNode(true),path=[];
-    for(let node=r.startContainer;node!==active;node=node.parentNode)path.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes,node));
-    const node=path.reduce((parent,index)=>parent.childNodes[index],clone),mapped=document.createRange();mapped.setStart(node,r.startOffset);mapped.collapse(true);
-    const marker=document.createElement('span');marker.dataset.listCaret='true';mapped.insertNode(marker);
-    let block=marker.parentElement;
-    while(block!==clone&&(!block.matches('p,div')||block.hasAttribute('data-format-operation')))block=block.parentElement;
-    if(block===clone||block.querySelector('p,div,ol,ul')){
-      const at=document.createRange();at.setStartBefore(marker);at.collapse(true);const line=currentParagraphRange(clone,at),contents=line.extractContents();
-      block=document.createElement('p');block.append(contents);line.insertNode(block);
+    if(!restore())return;const r=getSelection().getRangeAt(0),targets=paragraphIndentTargets(active,r);if(!targets.length)return;
+    // A mixed selection first becomes uniformly indented; the next click clears
+    // it uniformly. Never toggle individual paragraphs in opposite directions.
+    const enabled=!targets.every(target=>target.enabled),{start,length}=selectionOffsets(active,r),clone=active.cloneNode(true);
+    const map=node=>{const path=[];for(let current=node;current!==active;current=current.parentNode)path.unshift(Array.prototype.indexOf.call(current.parentNode.childNodes,current));return path.reduce((parent,index)=>parent.childNodes[index],clone);};
+    const mapped=targets.map(target=>{const line=document.createRange();line.setStart(map(target.line.startContainer),target.line.startOffset);line.setEnd(map(target.line.endContainer),target.line.endOffset);return {block:target.block?map(target.block):null,line};});
+    let marker=null;
+    if(r.collapsed){const at=document.createRange();at.setStart(map(r.startContainer),r.startOffset);at.collapse(true);marker=document.createElement('span');marker.dataset.listCaret='true';at.insertNode(marker);}
+    for(const target of mapped.reverse()){
+      let block=target.block;
+      if(!block){
+        const contents=target.line.extractContents();block=document.createElement('p');block.append(contents);target.line.insertNode(block);
+        // The paragraph replaces the old line separators. Lift it out of inline
+        // annotations, copying those marks inside so the HTML stays valid.
+        if(block.previousSibling?.nodeName==='BR')block.previousSibling.remove();
+        if(block.nextSibling?.nodeName==='BR')block.nextSibling.remove();
+        while(block.parentElement!==clone&&!block.parentElement.matches('p,div,li')){
+          const parent=block.parentElement,after=parent.cloneNode(false),mark=parent.cloneNode(false);
+          while(block.nextSibling)after.append(block.nextSibling);
+          mark.append(...block.childNodes);block.append(mark);parent.after(block);
+          if(after.hasChildNodes())block.after(after);if(!parent.hasChildNodes())parent.remove();
+        }
+      }
+      block.dataset.firstIndent=enabled?'on':'off';
     }
-    block.dataset.firstIndent=enabled?'on':'off';
-    if(length){marker.remove();replaceEditorContents(clone,start,length);}else replaceEditorContents(clone,start,0,marker);
+    replaceEditorContents(clone,start,length,marker);
   }
   function applyDocumentFont(){const root=document.documentElement;root.toggleAttribute('data-document-font',!!data.fontFamily);if(data.fontFamily)root.style.setProperty('--document-font',data.fontFamily+', var(--font-reading)');else root.style.removeProperty('--document-font');$('#fontFamilyPicker').value=data.fontFamily;}
   function selectTextOffsets(editor,start,length){
