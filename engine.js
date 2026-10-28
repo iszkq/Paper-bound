@@ -55,8 +55,8 @@
   function guideDocument(){return {id:noteRuntime.uuid(),title:'使用说明 · 从这里开始',folderId:'',kind:'guide',data:normalize({...documentDefaults,title:'使用说明 · 从这里开始',blocks:[{title:'欢迎使用纸间',html:'<p>把原文和自己的思考放在一起，慢慢读，也慢慢写。这份说明可以自由修改，或在文件库中删除。</p>'}],paragraphs:[
     {text:'一、打开文件库\n点击顶部「文件库」，可以新建文件夹、打开已有文件夹，也可以直接新建文档。点击文档名称即可打开，编辑中的内容会自动保存在本机。',note:'可以先新建一个文件夹，例如「阅读笔记」或「查经记录」。文档右侧的「⋯」支持重命名、移动、复制和删除。'},
     {text:'二、开始一份新文档\n点击「模板」可把常用标题、作者、来源、日期、刊头、栏目和内容保存为个人模板。新建时可搜索并选择模板，默认模板会自动选中，也可新建空白文档。',note:'模板可重命名、更新或删除，随账号同步。每份新文档是独立副本，不会改变模板。左侧写文段，右侧写分析；点击「添加下一段」继续写。'},
-    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 减少一级缩进，Shift+Enter 插入不编号的说明。取消单项编号可用「列表 → 转为普通段落」，或 Ctrl+Shift+0；正文独立段落在预览中首行缩进两字符，可用工具栏「首行缩进」按段关闭或恢复。选中来源文字后，单击格式刷刷一次，双击连续刷，Esc 退出。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
-    {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。还可以导入 TXT、Markdown 和 HTML 文章。'},
+    {text:'三、文字标注与栏目\n字体选择会统一修改整篇文档的显示字体，无需选中文字。字号和其他标注仍可用于选中文字；选择「默认字号」可以恢复大小。光标所在段落可用列表按钮转换；也可在行首输入「1.」后按空格创建有序列表。',note:'列表按 Enter 继续，Tab 增加一级缩进，Shift+Tab 退一级，一级时取消列表，光标在文字中间也可用。Shift+Enter 插入不编号的说明；选择「普通文本」可直接退出列表。正文独立段落在预览中首行缩进两字符，可用工具栏「首行缩进」按段关闭或恢复。选中来源文字后，单击格式刷刷一次，双击连续刷，Esc 退出。文前栏目适合放背景和提纲，文后栏目适合放总结与思考。栏目名称、位置和顺序都可以调整。'},
+    {text:'四、查找经文与导出\n「经文」支持按卷章阅读、用空格分隔关键词搜索、跨章节多选和复制。关闭弹窗会清空多选。',note:'「版面预览」可以切换讲义版、表格版和阅读字号，并导出图片或打印为 PDF。长文图片会自动分页，每张重复标题和顶部信息，正文连续排下去。还可以导入 TXT、Markdown 和 HTML 文章。'},
     {text:'五、登录与同步\n登录后，文档和文件夹按账号保存在服务端，并自动同步。未登录时只保存在本机。',note:'网络中断时，修改先保存在本机，重新连接后继续同步。遇到多端冲突可保留两个版本。旧的本机文档可在账号设置中导入，仍建议定期下载备份。'}]})};}
   function blankLibrary(){const old=session===GUEST?readJson(KEY,null):null,guide=guideDocument(),docs=[guide];if(old)docs.push({id:noteRuntime.uuid(),title:old.title||'阅读札记',folderId:'',data:normalize(old)});return {folders:[],documents:docs,activeId:old?docs[1].id:guide.id,guideVersion:1};}
   function normalizeTemplates(lib){
@@ -200,7 +200,10 @@
     indent.disabled=!targets.length;
     indent.setAttribute('aria-pressed',states.size>1?'mixed':String(states.has(true)));
     const uniform=values=>new Set(values).size===1?values[0]:'mixed';
-    const types=elements.map(el=>{const block=el.closest('h1,h2,h3,h4,h5,h6');return block&&active.contains(block)?block.tagName.toLowerCase():'p';});
+    const item=active&&range?currentListItem():null,outdent=$('[data-list-action="outdent"]');
+    outdent.disabled=!item;outdent.textContent=item?.parentElement.parentElement.closest('ol,ul')?'退回上一级 · Shift+Tab':item?'取消列表 · Shift+Tab':'退一级 / 取消列表 · Shift+Tab';
+    outdent.title='光标放在列表项任意位置即可使用；子列表退一级，一级列表取消编号，保留文字标注';
+    const types=elements.map(el=>{const block=el.closest('h1,h2,h3,h4,h5,h6');return block&&active.contains(block)?block.tagName.toLowerCase():el.closest('li')?'list':'p';});
     $('#textTypePicker').value=elements.length?uniform(types):'p';
     const size=elements.length?uniform(elements.map(el=>explicitSize(el,active))):'',picker=$('#fontSizePicker');
     picker.querySelector('[data-current-size]')?.remove();
@@ -431,6 +434,7 @@
       const path=[];for(let node=r.startContainer;node!==active;node=node.parentNode)path.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes,node));
       const node=path.reduce((parent,index)=>parent.childNodes[index],clone),caret=document.createRange();caret.setStart(node,r.startOffset);caret.collapse(true);marker=document.createElement('span');marker.dataset.listCaret='true';caret.insertNode(marker);
     }
+    normalizeNestedLists(clone);
     let nextNumber=originalList.tagName==='OL'?originalList.start:1;
     for(const sibling of Array.from(originalList.children).slice(0,index+1)){if(sibling.hasAttribute('value'))nextNumber=sibling.value;nextNumber++;}
     const tail=list.cloneNode(false);while(copy.nextSibling)tail.append(copy.nextSibling);
@@ -444,7 +448,30 @@
     }
     flush();if(!content.hasChildNodes()){paragraph.append(document.createElement('br'));content.append(paragraph);}
     if(tail.hasChildNodes())content.append(tail);
+    const first=content.firstChild,last=content.lastChild;
     list.after(content);copy.remove();if(!list.children.length)list.remove();
+    // Ordinary text must leave every LI ancestor, even when it started in a
+    // third-level item. Keep preceding content and following numbers in order.
+    let firstBlock=first,lastBlock=last;
+    while(firstBlock.parentElement.closest('li')){
+      const parentItem=firstBlock.parentElement.closest('li'),parentList=parentItem.parentElement,following=parentList.cloneNode(false);
+      let number=parentList.tagName==='OL'?parentList.start:1;
+      for(const sibling of Array.from(parentList.children)){if(sibling.hasAttribute('value'))number=sibling.value;number++;if(sibling===parentItem)break;}
+      if(following.tagName==='OL')following.start=number;
+      while(parentItem.nextSibling)following.append(parentItem.nextSibling);
+      const after=document.createRange();after.selectNodeContents(parentItem);after.setStartAfter(lastBlock);const rest=after.extractContents(),lifted=document.createDocumentFragment();
+      let node=firstBlock;while(node){const next=node.nextSibling;lifted.append(node);if(node===lastBlock)break;node=next;}
+      // Any ordinary trailing text of the parent becomes an ordinary paragraph.
+      let p=null;
+      for(const child of Array.from(rest.childNodes)){
+        if(child.nodeType===Node.ELEMENT_NODE&&/^(P|DIV|H[1-6]|OL|UL)$/.test(child.tagName)){p=null;lifted.append(child);}
+        else {if(!p){p=document.createElement('p');lifted.append(p);}p.append(child);}
+      }
+      if(following.hasChildNodes())lifted.append(following);
+      lastBlock=lifted.lastChild;parentList.after(lifted);
+      if(!parentItem.textContent&&!parentItem.querySelector('li'))parentItem.remove();
+      if(!parentList.children.length)parentList.remove();
+    }
     replaceEditorContents(clone,start,length,marker);
   }
   function currentParagraphRange(editor,caret){
@@ -501,8 +528,37 @@
   }
   function changeListDepth(outdent=false){
     if(!restore())return;const item=currentListItem();if(!item)return;
-    if(!outdent&&!item.previousElementSibling)return;
-    document.execCommand(outdent?'outdent':'indent');commit();
+    if(outdent&&!item.parentElement.parentElement.closest('ol,ul')){unwrapListItem(item);return;}
+    if(outdent||item.previousElementSibling?.matches('li')){
+      const r=getSelection().getRangeAt(0),{start,length}=selectionOffsets(active,r),clone=active.cloneNode(true),copy=clone.querySelectorAll('li')[Array.from(active.querySelectorAll('li')).indexOf(item)];
+      let marker=null;
+      if(r.collapsed){
+        const path=[];for(let node=r.startContainer;node!==active;node=node.parentNode)path.unshift(Array.prototype.indexOf.call(node.parentNode.childNodes,node));
+        const at=document.createRange();at.setStart(path.reduce((parent,index)=>parent.childNodes[index],clone),r.startOffset);at.collapse(true);marker=document.createElement('span');marker.dataset.listCaret='true';at.insertNode(marker);
+      }
+      normalizeNestedLists(clone);
+      if(!outdent){
+        const previous=copy.previousElementSibling,list=copy.parentElement;
+        let nested=previous.lastElementChild;
+        if(!nested||nested.tagName!==list.tagName||nested.dataset.task!==list.dataset.task){nested=list.cloneNode(false);nested.removeAttribute('start');previous.append(nested);}
+        nested.append(copy);replaceEditorContents(clone,start,length,marker);return;
+      }
+      const inner=copy.parentElement,parent=inner.parentElement.closest('li'),outer=parent.parentElement,tail=inner.cloneNode(false);
+      let nextNumber=inner.tagName==='OL'?inner.start:1;
+      for(const sibling of Array.from(inner.children)){if(sibling.hasAttribute('value'))nextNumber=sibling.value;nextNumber++;if(sibling===copy)break;}
+      if(tail.tagName==='OL')tail.start=nextNumber;
+      while(copy.nextSibling)tail.append(copy.nextSibling);
+      if(tail.hasChildNodes())copy.append(tail);
+      // Following text belongs after the promoted item, rather than moving
+      // ahead of it as Chromium's native outdent sometimes does.
+      while(inner.nextSibling)copy.append(inner.nextSibling);
+      outer.insertBefore(copy,parent.nextSibling);if(!inner.children.length)inner.remove();
+      if(!parent.textContent&&!parent.querySelector('li'))parent.remove();
+      replaceEditorContents(clone,start,length,marker);return;
+    }
+  }
+  function normalizeNestedLists(editor){
+    for(const list of editor.querySelectorAll('ol,ul'))if(list.parentElement.matches('ol,ul')&&list.previousElementSibling?.matches('li'))list.previousElementSibling.append(list);
   }
   function listLineBreak(){if(restore()){document.execCommand('insertLineBreak');commit();}}
   function autoOrderedList(event){

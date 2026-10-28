@@ -80,3 +80,14 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 ```sh
 npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraph-indent-batch.js
 ```
+
+## 统一退出列表与图片分页
+
+`list-exit.js` 验证列表菜单只保留一个退级／取消入口，与 Shift+Tab 一致：有序、无序、任务列表一级取消，二三级逐级退回，光标在文字中间仍整项处理。检查光标继续输入、格式、后续编号、撤销重做、文本类型显示、嵌套列表直接转普通文本真正退出所有 LI 祖先、刷新和手机菜单。
+
+`image-pages.js` 使用楷体长文、两栏不同字号、高亮和波浪线，在讲义与表格版中检查 A4 比例分页、正文源区间连续、分页不切文字行、各页页头像素完全相同、续页栏名、真实多文件下载及顺序、手机和短文。截图样本为 `output/playwright/paged-handout-1.png`、`paged-handout-2.png` 及对应表格版。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/list-exit.js
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/image-pages.js
+```

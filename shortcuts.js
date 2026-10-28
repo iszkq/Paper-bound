@@ -45,7 +45,7 @@
     {group:'标题与列表',name:'插入任务列表',keys:[['Mod','Shift','9']],codes:['Digit9'],shift:true,editing:true,run:command('insertList','task')},
     {group:'标题与列表',name:'行首数字加点，再按空格创建有序列表',keys:[['1.','空格']]},
     {group:'标题与列表',name:'列表增加一级缩进',keys:[['Tab']]},
-    {group:'标题与列表',name:'列表减少一级缩进',keys:[['Shift','Tab']]},
+    {group:'标题与列表',name:'列表退一级；一级时取消列表（光标可在项内任意位置）',keys:[['Shift','Tab']]},
     {group:'标题与列表',name:'列表内插入不编号的说明文字',keys:[['Shift','Enter']]},
     {group:'标题与列表',name:'继续下一项；空列表项中退出列表',keys:[['Enter']]},
     {group:'文件库',name:'向上 / 向下排序选中项',keys:[['Alt','↑'],['Alt','↓']]},

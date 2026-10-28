@@ -83,7 +83,7 @@ async page => {
     check((await shape()).levels.includes(3),'A second Tab level did not produce a third level');
     await editor.press('Shift+Tab');check(!(await shape()).levels.includes(3),'Shift+Tab did not reduce the level');
     await editor.press('Shift+Tab');
-    check((await shape()).levels.filter(level=>level===1).length===3,'Outdent did not return the item to the root');
+    check((await shape()).levels.filter(level=>level===1).length===3,'Outdent did not return the item to the root: '+JSON.stringify(await shape()));
     await caret('ol > li',0);const before=await shape();await editor.press('Tab');check((await shape()).html===before.html,'The first item nested without a preceding parent');
     results.push('nested levels, outdent and focus');
 

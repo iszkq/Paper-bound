@@ -15,7 +15,7 @@ async page => {
       if(method==='shortcut')await editor.press('ControlOrMeta+Shift+0');
       if(method==='toggle'||method==='menu'){
         await test.locator('summary[aria-label="列表"]').click();
-        await test.locator(method==='toggle'?'[data-list="ordered"]':'[data-list-action="paragraph"]').click();
+        await test.locator(method==='toggle'?'[data-list="ordered"]':'[data-list-action="outdent"]').click();
       }
       check(await editor.locator('li').count()===3,'Normal paragraph did not remove only item seven: '+method);
       check(await editor.textContent()==='第五点第六点'+copy+'第八点','Converting item seven reordered or lost text: '+method);

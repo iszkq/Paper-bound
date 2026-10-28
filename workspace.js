@@ -191,18 +191,68 @@
       const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.scale(2,2);context.drawImage(image,0,0);
       return canvas;
     };
-    return {render,height:rect.height};
+    return {render,height:rect.height,width:rect.width};
   }
+  function imagePagePlan(element,ratio=Math.SQRT2){
+    const rect=element.getBoundingClientRect(),css=getComputedStyle(element),header=element.querySelector('.paper-header,.paper-table-header'),columns=element.querySelector('.paper-columns-head');
+    const headerBottom=header.getBoundingClientRect().bottom-rect.top,columnsTop=columns.getBoundingClientRect().top-rect.top,columnsHeight=columns.getBoundingClientRect().height;
+    const bottomPadding=Math.max(32,parseFloat(css.paddingBottom)),footer=24,pageHeight=Math.ceil(rect.width*ratio),blocked=[];
+    const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);
+    while(walker.nextNode()){
+      const node=walker.currentNode;if(!node.textContent.trim())continue;
+      const range=document.createRange();range.selectNodeContents(node);
+      for(const line of range.getClientRects())if(line.height&&line.width)blocked.push({start:line.top-rect.top-1,end:line.bottom-rect.top+6});
+    }
+    // Short headings stay together, and any possible cut must clear both columns.
+    for(const heading of element.querySelectorAll('h2,h3,h4,h5,h6')){const box=heading.getBoundingClientRect();if(box.height<pageHeight/3)blocked.push({start:box.top-rect.top-1,end:box.bottom-rect.top+6});}
+    blocked.sort((a,b)=>a.start-b.start);const bands=[];
+    for(const band of blocked){const previous=bands.at(-1);if(previous&&band.start<=previous.end)previous.end=Math.max(previous.end,band.end);else bands.push({...band});}
+    const end=Math.max(headerBottom,element.lastElementChild.getBoundingClientRect().bottom-rect.top),pages=[];
+    const boundaries=Array.from(element.querySelectorAll('.content-pair,.paper-custom-block,.paper-endnotes'),node=>node.getBoundingClientRect().top-rect.top);
+    let offset=headerBottom;
+    do {
+      const repeatColumns=pages.length>0&&offset>=columnsTop+columnsHeight-1,headingHeight=headerBottom+(repeatColumns?columnsHeight:0),capacity=Math.max(64,pageHeight-headingHeight-bottomPadding-footer);
+      let cut=Math.min(end,offset+capacity);
+      if(cut<end){
+        const preferred=boundaries.filter(y=>y>offset+capacity*.7&&y<=cut&&!bands.some(b=>b.start<y&&b.end>y));
+        if(preferred.length)cut=preferred.at(-1);
+        else {
+          const band=bands.find(b=>b.start<cut&&b.end>cut);
+          if(band)cut=band.start>offset+24?band.start:band.end;
+        }
+      }
+      cut=Math.min(end,Math.max(cut,offset+1));
+      pages.push({start:offset,end:cut,repeatColumns,height:Math.ceil(Math.max(pageHeight,headingHeight+cut-offset+bottomPadding+footer))});offset=cut;
+    }while(offset<end-.01);
+    return {width:rect.width,headerBottom,columnsTop,columnsHeight,bottomPadding,footer,pages};
+  }
+  async function prepareImageExport(){
+    const element=$('#paper');element.getBoundingClientRect();await document.fonts.ready;
+    const plan=imagePagePlan(element),snapshot=await imageSnapshot(element),header=await snapshot.render(0,plan.headerBottom);
+    let columns=null;
+    const renderPage=async index=>{
+      const page=plan.pages[index];if(!page)throw Error('图片页码不存在。');
+      const canvas=document.createElement('canvas');canvas.width=Math.ceil(plan.width*2);canvas.height=Math.ceil(page.height*2);
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(header,0,0);
+      let y=plan.headerBottom;
+      if(page.repeatColumns){if(!columns)columns=await snapshot.render(plan.columnsTop,plan.columnsHeight);ctx.drawImage(columns,0,Math.round(y*2));y+=plan.columnsHeight;}
+      const body=await snapshot.render(page.start,page.end-page.start);ctx.drawImage(body,0,Math.round(y*2));body.width=0;body.height=0;
+      ctx.scale(2,2);ctx.fillStyle='#737a7e';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText((index+1)+' / '+plan.pages.length,plan.width/2,page.height-plan.bottomPadding/2);
+      return canvas;
+    };
+    return {...plan,renderPage};
+  }
+  app.prepareImageExport=prepareImageExport;
   // Preview sizing and image export share the same layout and document fonts.
   const toolbar=$('.preview-toolbar');
-  const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
+  const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';exportButton.title='按 A4 竖版比例分页，每张保留标题和顶部信息，正文连续衔接';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
   const scaleLabel=document.createElement('label');scaleLabel.className='preview-scale-label';scaleLabel.innerHTML='阅读字号 <select id="previewReadingSize" aria-label="预览阅读字号"><option value="17">17</option><option value="19">19</option><option value="22">22</option><option value="24">24</option></select>';toolbar.insertBefore(scaleLabel,exportButton);
   $('#previewReadingSize').onchange=e=>$('#paper').style.setProperty('--preview-reading-size',e.target.value+'px');
   exportButton.onclick=async()=>{
     const button=exportButton;button.disabled=true;button.textContent='正在生成图片…';
-    try{const snapshot=await imageSnapshot($('#paper')),maxSlice=5000;
-      const count=Math.ceil(snapshot.height/maxSlice);for(let i=0;i<count;i++){const h=Math.min(maxSlice,snapshot.height-i*maxSlice);const canvas=await snapshot.render(i*maxSlice,h);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('图片生成失败。');download(blob,(app.getState().data.title||'阅读笔记')+(count>1?'-'+(i+1):'')+'.png');canvas.width=0;canvas.height=0;}
-      app.toast(count>1?'已分段导出 '+count+' 张高清图片':'图片已导出');
+    try{const prepared=await prepareImageExport(),count=prepared.pages.length;
+      for(let i=0;i<count;i++){button.textContent='正在导出 '+(i+1)+' / '+count+'…';const canvas=await prepared.renderPage(i);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('图片生成失败。');download(blob,(app.getState().data.title||'阅读笔记')+(count>1?'-'+String(i+1).padStart(String(count).length,'0'):'')+'.png');canvas.width=0;canvas.height=0;}
+      app.toast(count>1?'已分页导出 '+count+' 张图片，每张均保留标题；如下载受阻，请允许浏览器下载多个文件。':'图片已导出');
     }catch(err){app.toast(err.message||'图片导出失败，请重试。');}finally{button.disabled=false;button.textContent='导出图片';}
   };
   // CSV is parsed as data, including quoted fields, commas and embedded newlines.
