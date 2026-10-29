@@ -6,6 +6,10 @@ async page => {
   const editor=test.locator('.paragraph-text').first(),button=test.locator('#paragraphIndent');
   const copy='这句话需要单独设置首行缩进。',marked='<strong><span style="background-color:#fef08a;color:#15803d">'+copy+'</span></strong>';
   async function seed(html){await editor.evaluate((e,h)=>{e.innerHTML=h;e.dispatchEvent(new InputEvent('input',{bubbles:true}));},html);}
+  async function editorIndent(expected){
+   const g=await editor.evaluate(e=>{const block=e.querySelector('[data-first-indent]')||e.querySelector('p,div')||e,style=getComputedStyle(block);return {indent:parseFloat(style.textIndent),size:parseFloat(style.fontSize)};});
+   check(Math.abs(g.indent-(expected?2*g.size:0))<1,'Editing text does not match preview first-line indentation: '+JSON.stringify(g));
+  }
   async function caret(selector,selected=false){await editor.evaluate((e,{selector,selected,copy})=>{const parent=selector?e.querySelector(selector):e,w=document.createTreeWalker(parent,NodeFilter.SHOW_TEXT);let node;while(w.nextNode())if(w.currentNode.textContent.includes(copy)){node=w.currentNode;break;}if(!node){w.currentNode=parent;while(w.nextNode())if(w.currentNode.length){node=w.currentNode;break;}}const r=document.createRange();r.setStart(node,selected?0:Math.min(3,node.length));if(selected)r.setEnd(node,node.length);else r.collapse(true);e.focus();getSelection().removeAllRanges();getSelection().addRange(r);noteEditor.remember();},{selector,selected,copy});}
   async function preview(expected){
    await test.locator('[data-view="preview"]').click();
@@ -21,10 +25,12 @@ async page => {
   }
   for(const suffix of ['<p>'+marked+'</p>','<div>'+marked+'</div>',marked,'<br>'+marked]){
    await seed('<ol start="5"><li>第五点</li><li>第六点</li></ol>'+suffix+'<p>其他段落保留缩进。</p>');
+   await editorIndent(true);
    await caret(null,true);await button.click();check(await button.getAttribute('aria-pressed')==='false','Toggle did not disable paragraph indent');
    check(await test.evaluate(()=>getSelection().toString())===copy,'Toggle lost selected text');check(await editor.locator('[data-first-indent="off"]').count()===1,'Indent was not saved on one paragraph');
+   await editorIndent(false);
    await preview(false);await caret('[data-first-indent="off"]');await editor.press('ControlOrMeta+Z');check(await editor.locator('[data-first-indent="off"]').count()===0,'Cannot undo indentation');await editor.press('ControlOrMeta+Shift+Z');check(await editor.locator('[data-first-indent="off"]').count()===1,'Cannot redo indentation');
-   await caret('[data-first-indent="off"]');await button.click();check(await button.getAttribute('aria-pressed')==='true','Toggle did not restore two-character indent');await preview(true);
+   await caret('[data-first-indent="off"]');await button.click();check(await button.getAttribute('aria-pressed')==='true','Toggle did not restore two-character indent');await editorIndent(true);await preview(true);
    await caret('[data-first-indent="on"]');await button.click();await test.evaluate(()=>noteApp.save());await test.reload();await test.waitForFunction(()=>window.noteCloud);await test.evaluate(()=>noteCloud.ready);await preview(false);
   }
   // Format painter copies text formatting while retaining paragraph indentation.

@@ -5,15 +5,18 @@ async page => {
   const state=()=>test.evaluate(()=>{noteApp.save();return noteRuntime.clone(noteApp.getState().library);});
   try{
     await test.goto('http://127.0.0.1:4173/index.html');await test.waitForFunction(()=>window.noteCloud);await test.evaluate(()=>noteCloud.ready);
+    const templateId=await test.evaluate(()=>{const state=noteApp.getState();Object.assign(state.data,{title:'导入模板标题',author:'模板作者',source:'模板来源',date:'模板日期',dateHeading:'模板日期框',topic:'模板主题',masthead:'模板刊头'});state.data.blocks=[{title:'模板文前栏目',html:'<p>保留的模板说明</p>',position:'top'},{title:'模板文后栏目',html:'<p>保留的模板总结</p>',position:'bottom'}];noteApp.save();return noteApp.saveTemplate('导入回归模板').id;});
     const original=await state();
     await test.locator('[aria-label="列表"]').click();
     check(await test.locator('.list-popover .popover-label').count()===0,'List menu repeats instructions already shown on its actions');
     await test.locator('[aria-label="列表"]').click();
     await test.locator('#importBtn').click();
     check(await test.locator('#actionDialog').isVisible(),'Import dialog missing');
+    check(await test.locator('#articleImportTemplate').isVisible(),'Import dialog is missing template selection');
     check(await test.locator('#articlePasteStatus').isHidden(),'Empty paste status should stay hidden');
     check((await test.locator('#articleChooseFile').innerText()).trim()==='选择文件','File button repeats the supported-format description');
     check(await test.locator('#actionDialog').locator('text=图片、页眉页脚及复杂版式不保留').count()===0,'Import dialog contains redundant Word limitations');
+    await test.locator('#articleImportTemplate').selectOption(templateId);
     await test.locator('#articlePasteTitle').fill('粘贴导入检查');
     await test.locator('#articlePasteText').fill('第一段正文\n保留段内换行\n\n第二段 <script>文本</script>\n\n第三段正文');
     check((await test.locator('#articlePasteStatus').innerText()).includes('3 个文段'),'Paste paragraph count is wrong');
@@ -23,7 +26,17 @@ async page => {
     check(library.documents.length===original.documents.length+1,'Paste should create a new document by default');
     check(JSON.stringify(library.documents[0])===JSON.stringify(original.documents[0]),'Import changed original document');
     check(doc.title==='粘贴导入检查'&&doc.data.paragraphs.length===3,'Paste import lost title or paragraphs');
+    check(doc.data.author==='模板作者'&&doc.data.source==='模板来源'&&doc.data.masthead==='模板刊头'&&doc.data.dateHeading==='模板日期框','Paste import did not inherit template heading metadata');
+    check(doc.data.blocks.length===0,'Paste import did not replace old template columns');
     check(doc.data.paragraphs[0].html.includes('<br>')&&doc.data.paragraphs[1].html.includes('&lt;script&gt;'),'Plain text should retain line breaks and escape markup');
+    const beforeInsert=doc.data.paragraphs;
+    check(await test.locator('.paragraph-insert').first().innerText()==='＋','Inline insert button should show only a plus icon');
+    await test.locator('.paragraph-insert').nth(0).click();
+    let afterInsert=(await state()).documents.find(d=>d.id===doc.id).data.paragraphs;
+    check(afterInsert.length===beforeInsert.length+1&&afterInsert[0].html===beforeInsert[0].html&&!afterInsert[1].html&&afterInsert[2].html===beforeInsert[1].html,'Insert-under-paragraph did not create a blank paragraph between the selected paragraph and its successor');
+    test.once('dialog',dialog=>dialog.accept());await test.locator('[data-action="delete"]').nth(1).click();
+    afterInsert=(await state()).documents.find(d=>d.id===doc.id).data.paragraphs;
+    check(JSON.stringify(afterInsert)===JSON.stringify(beforeInsert),'Removing the inserted paragraph changed neighboring paragraph order');
     await test.locator('.annotation-text').nth(0).fill('第一段对应分析');
     await test.locator('.annotation-text').nth(1).fill('第二段对应分析');
     await test.locator('.annotation-text').nth(2).fill('第三段对应分析');
@@ -52,6 +65,13 @@ async page => {
     await test.waitForFunction(()=>!document.querySelector('#actionDialog').open);
     library=await state();doc=library.documents.find(d=>d.id===library.activeId);
     check(doc.title==='文件导入检查'&&doc.data.paragraphs.length===2&&doc.data.paragraphs[0].html.includes('<strong>'),'HTML file import regressed');
+    await test.locator('#importBtn').click();await test.locator('#articleImportTemplate').selectOption(templateId);
+    const templateFileChooser=test.waitForEvent('filechooser');await test.locator('#articleChooseFile').click();
+    await (await templateFileChooser).setFiles({name:'模板文件导入.html',mimeType:'text/html',buffer:Buffer.from('<p>文件正文来自模板导入</p>')});
+    await test.waitForFunction(()=>!document.querySelector('#actionDialog').open);
+    library=await state();doc=library.documents.find(d=>d.id===library.activeId);
+    check(doc.title==='导入模板标题'&&doc.data.author==='模板作者'&&doc.data.paragraphs.length===1&&doc.data.paragraphs[0].html.includes('文件正文来自模板导入'),'File import did not inherit the selected template while replacing its body');
+    check(doc.data.blocks.length===0,'File import did not replace old template columns');
     // Replacement is explicit and cancellation must leave the document untouched.
     await test.locator('#importBtn').click();await test.locator('#articleImportTarget').selectOption('current');
     await test.locator('#articlePasteText').fill('替换后的正文');
@@ -60,6 +80,11 @@ async page => {
     test.once('dialog',dialog=>dialog.accept());await test.locator('#articlePasteForm button[type=submit]').click();
     const final=await state(),replaced=final.documents.find(d=>d.id===doc.id);
     check(final.documents.length===library.documents.length&&replaced.data.paragraphs.length===1&&replaced.data.paragraphs[0].html==='替换后的正文','Replace import created an unwanted extra document');
+    await test.locator('#importBtn').click();await test.locator('#articleImportTarget').selectOption('current');await test.locator('#articleImportTemplate').selectOption(templateId);await test.locator('#articlePasteText').fill('套用模板替换当前正文');
+    test.once('dialog',dialog=>dialog.accept());await test.locator('#articlePasteForm button[type=submit]').click();
+    const currentTemplateImport=await state(),currentTemplateDoc=currentTemplateImport.documents.find(d=>d.id===doc.id);
+    check(currentTemplateImport.documents.length===library.documents.length&&currentTemplateImport.activeId===doc.id,'Template replacement created an extra document or changed the target');
+    check(currentTemplateDoc.title==='导入模板标题'&&currentTemplateDoc.data.author==='模板作者'&&currentTemplateDoc.data.paragraphs[0].html==='套用模板替换当前正文'&&currentTemplateDoc.data.blocks.length===0,'Template replacement failed to apply heading metadata and replace old content');
     check(!errors.length,'Browser errors: '+errors.join('; '));
     await test.screenshot({path:'output/playwright/article-order.png',fullPage:true});
     return 'Paste/file imports, cancellation, paired up/down/drag ordering and persistence passed';

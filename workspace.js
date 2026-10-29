@@ -30,19 +30,24 @@
   }
   $('#importBtn').title='从文件或粘贴文本导入';
   $('#importBtn').onclick=()=>{
-    const dialog=newDialog('导入文章','<p class="dialog-copy">支持 Word（.docx）、TXT、Markdown、HTML，也可粘贴正文。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><button class="btn" id="articleChooseFile">选择文件</button><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status" hidden></p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
+    const templates=app.getState().library.templates;
+    const templateOptions=templates.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+(t.id===app.getState().library.defaultTemplateId?'（默认）':'')+'</option>').join('');
+    const dialog=newDialog('导入文章','<p class="dialog-copy">支持 Word（.docx）、TXT、Markdown、HTML，也可粘贴正文。</p><label>导入到<select id="articleImportTarget"><option value="new">新建文档</option><option value="current">替换当前文档的正文和栏目</option></select></label><label>使用模板<select id="articleImportTemplate"><option value="">不使用模板</option>'+templateOptions+'</select></label><p class="dialog-copy" id="articleImportTemplateHint">不使用模板时沿用原有导入方式；选择模板后保留模板标题和刊头，正文以导入内容替换模板正文与栏目。</p><button class="btn" id="articleChooseFile">选择文件</button><form id="articlePasteForm"><label>文章标题（选填）<input id="articlePasteTitle" maxlength="160" placeholder="未填写时使用默认标题"></label><label>粘贴正文<textarea id="articlePasteText" rows="9" placeholder="在这里粘贴文章，段落之间空一行。" required></textarea></label><p class="dialog-copy" id="articlePasteStatus" role="status" hidden></p><div class="dialog-actions"><button class="btn btn-primary" type="submit">导入文本</button><button class="btn" type="button" id="articleImportCancel">取消</button></div></form>');
     dialog.classList.add('article-import-dialog');
     const input=$('#articlePasteText'),status=$('#articlePasteStatus');
+    const templatePicker=$('#articleImportTemplate'),titleInput=$('#articlePasteTitle');
+    templatePicker.onchange=()=>{titleInput.placeholder=templatePicker.value?'留空时保留模板标题':'未填写时使用默认标题';$('#articleImportTemplateHint').textContent=templatePicker.value?'将沿用模板标题和刊头；导入内容会替换模板正文与栏目。':'不使用模板时沿用原有导入方式；选择模板后保留模板标题和刊头，正文以导入内容替换模板正文与栏目。';};
     input.oninput=()=>{const count=app.parseArticle(input.value).length;status.hidden=!count;status.textContent=count?'将导入 '+count+' 个文段':'';};
     $('#articleImportCancel').onclick=()=>dialog.close();
     $('#articlePasteForm').onsubmit=e=>{
       e.preventDefault();if(!input.value.trim()){status.textContent='请先粘贴正文';input.focus();return;}
-      if(app.importArticle(app.parseArticle(input.value),$('#articlePasteTitle').value,$('#articleImportTarget').value==='new'))dialog.close();
+      const createNew=$('#articleImportTarget').value==='new',templateId=templatePicker.value,title=titleInput.value.trim()||(createNew&&!templateId?'导入的文章':'');
+      if(app.importArticle(app.parseArticle(input.value),title,$('#articleImportTarget').value==='new',templateId))dialog.close();
     };
     $('#articleChooseFile').onclick=()=>$('#importFile').click();
     $('#importFile').onchange=async e=>{
       const file=e.target.files?.[0];if(!file)return;
-      const createNew=$('#articleImportTarget').value==='new',choose=$('#articleChooseFile'),submit=$('#articlePasteForm button[type="submit"]'),targetId=app.getState().activeDoc.id;
+      const createNew=$('#articleImportTarget').value==='new',templateId=templatePicker.value,choose=$('#articleChooseFile'),submit=$('#articlePasteForm button[type="submit"]'),targetId=app.getState().activeDoc.id;
       choose.disabled=submit.disabled=true;status.hidden=false;status.textContent='正在读取文件…';
       try{
         const ext=file.name.split('.').pop().toLowerCase();let paragraphs;
@@ -59,7 +64,8 @@
         if(!dialog.open)return;
         if(!createNew&&app.getState().activeDoc.id!==targetId)throw Error('当前文档已切换，请重新选择导入目标。');
         if(!paragraphs.length)throw Error('文件中没有可导入的文字正文。');
-        if(app.importArticle(paragraphs,file.name.replace(/\.[^.]+$/,''),createNew))dialog.close();
+        const title=titleInput.value.trim()||(!templateId?file.name.replace(/\.[^.]+$/,''):'');
+        if(app.importArticle(paragraphs,title,createNew,templateId))dialog.close();
         else status.textContent='已取消导入，原文档保持不变。';
       }catch(err){status.textContent=err.message||'文件读取失败，请重试。';}
       finally{e.target.value='';choose.disabled=submit.disabled=false;}

@@ -66,6 +66,8 @@
 .paragraph-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; min-height: 26px; }
 .para-number { color: var(--muted); font-size: 11px; }
 .para-controls { margin-left: auto; display: flex; gap: 4px; }
+.paragraph-insert { color: var(--red); background: var(--red-soft); font-size: 18px; line-height: 1; }
+.paragraph-insert:hover { background: #f8e1df; }
 .paragraph-drag { cursor: grab; }
 .paragraph-drag:active { cursor: grabbing; }
 .edit-pair[data-drop-position="before"] { box-shadow: 0 -2px 0 var(--red); }
@@ -75,6 +77,11 @@
 .border-toggle { border: 0; border-radius: 4px; padding: 5px 8px; color: var(--muted); background: #f4f5f5; font-size: 11px; }
 .border-toggle[aria-pressed="true"] { color: var(--red); background: var(--red-soft); }
 .rich-editor { min-height: 150px; outline: 0; color: #30383e; font-family: var(--font-reading); font-size: var(--body-size); line-height: 1.95; overflow-wrap: anywhere; }
+.rich-editor.paragraph-text { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); white-space: normal; }
+.rich-editor.paragraph-text p, .rich-editor.paragraph-text div { text-indent: var(--paragraph-indent); }
+.rich-editor.paragraph-text li p, .rich-editor.paragraph-text li div { text-indent: 0; }
+.rich-editor.paragraph-text [data-first-indent="off"] { --paragraph-indent: 0em; text-indent: var(--paragraph-indent); }
+.rich-editor.paragraph-text [data-first-indent="on"] { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
 /* Only document contents use the chosen face; application controls keep their UI font. */
 .title-input, .meta-field, .block-title-input, .rich-editor, .rich-editor *, #paper, #paper * { font-family: var(--document-font, var(--font-reading)) !important; }
 .rich-editor [data-default-size="true"] { font-size: var(--body-size) !important; }
