@@ -1,15 +1,15 @@
 {
-  "version": "2026.10.28.10",
+  "version": "2026.10.29.1",
   "files": {
     "admin.css": "7c3dd88c7e5b986d00e3e9635adcd8db364a960f1726dc013ad4f65677a0a12f",
-    "admin.html": "8c29bc8155df7924ca310f2cb8ff9596d48232aa277a9dfd0fa911563cd8fa21",
+    "admin.html": "d245d23e80a6294792ebc9df65897c4ef7dd0b52ade7c57ec8a8ec90db56b840",
     "admin.js": "51efcc340dccea468efefac53e027214769aff1fdeb9525b981605aa3c3f843b",
     "auth.css": "414e40dd0da9317e2a19f7e2848004bf54a65b5153b91256d30051cd0f5cc18b",
     "cloud.js": "dcf16f1d78663fd885f9b754b91f6fc4a4fc08b9e4fabb4a012583abe69e44ee",
     "compat.js": "a3550f4dbfb06ace71911add238f05e9b0542507a28e8abb05ee7dee6c485c32",
     "data/Bible1.csv": "b407bf151bb5f91dc451dc7becc2e3310b783d2207aa60daf8251a749f62b5df",
-    "editor.css": "0a45d40e6e0f99daff8c8a62dd639ee51d07acd871b0de0d2abc7d607ff77bcc",
-    "engine.js": "33da57212faa0b5d8c996d3f0e561601ea3df8bf9261bcb131ad451967de3d64",
+    "editor.css": "3fd2e88b6caf058b2b5295e6c1ea856fcfd705901168afaf5d19a7ffad44be0c",
+    "engine.js": "e8c63e0c75d7e23d2782fd6ad962c809722ca514ec166d387b047d2fd8196f9f",
     "favicon.ico": "307083346e457e9f9c8ca151791d61f28a8e4ae6fe117dabc388aab65f884f84",
     "favicon.png": "7a64d05317a7ccda812183493ab756d1b65ebb1ee081b26ff410b4e17d3cf36d",
     "fonts/FangSongGB2312.ttf": "fef7cf991b458cabd184b73378918d9d15429010e1d6c804f08d394395c3c3b4",
@@ -18,9 +18,9 @@
     "fonts/XiaozhangReading-Bold.ttf": "ab71cf8584c38c120553ef16c63b1231e376bbf3da94daac86a429897f1f069a",
     "fonts/XiaozhangReading-Light.ttf": "953312d3373b14326ac82cbcede5f0c1aab9a46211c11e2270ddc07e38516d7f",
     "fonts/XiaozhangReading-Regular.ttf": "e978e0fd5ff694b19ce83389710b42beea90a65b5441bb21ca37c2350de73285",
-    "index.html": "750b11ab6019a522c45fdb955b329510b4cb724b40d129eaed1a3538d63b06f2",
+    "index.html": "c7a324b956d84be00fd93a17de4f1aab8085ad8bdd08c607e56f7e119c691cda",
     "library-order.js": "0878c39e72a5c4189354a5c2c1affa170c1db29a2aa2ed84697040271a18ead1",
-    "login.html": "7a56b95fc76cb8e3ffdcbc9f2054cdd930b9bf8b2b9fdb02da820533938a519e",
+    "login.html": "db113afedbae4c2ed523cbe850616d3baa079ec8d22c48fefbd9617e51e91b80",
     "login.js": "b4ad9e17f299263bd390d89d59987606e747a308bfbd8c292c0ca6fd85c95ea1",
     "server.py": "1d67d79e1d63153e7f51e3ad3c2ab506a793432b76cb9e2449abb76ff22ae00c",
     "shortcuts.css": "17dfa341e9c353c9153fa2926f70d0c0ee12ff953bbfe604a0295e5ec2048692",
@@ -30,6 +30,6 @@
     "vendor/mammoth-LICENSE": "6663bbd049205d38a496ccacb412a151980b444627d38de218b3b809aef330f1",
     "vendor/mammoth.browser.min.js": "92914a3708cfdf1e62cb553d1856a7fedab21da83d8ee82845de2f897b368cab",
     "workspace.css": "5adb6d3f1930e37a28c9265ee3f161269614baab1d4c7df496a96611344edd54",
-    "workspace.js": "6fce2c96959605068724b3c4c92ec144a365252e00105024d4f0eebd535d37f3"
+    "workspace.js": "acb0d0218e317a2efc139e1ec37ab7c510b70f864e3462a21dd127bcbdb102d3"
   }
 }
