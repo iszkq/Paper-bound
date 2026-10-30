@@ -87,6 +87,25 @@ npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --f
 npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraph-indent-batch.js
 ```
 
+## 新增段落位置
+
+`paragraph-add.js` 使用独立访客上下文，验证底部“添加下一段”连续点击和顶部新增都在末尾追加，保留已有原文、分析及格式，聚焦新段落，并检查段间插入和刷新保存。需要服务已完成管理员初始化，测试本身不修改服务器文档。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/paragraph-add.js
+```
+
+## 栏目缩进与纯净全屏阅读
+
+`column-indent.js` 在独立访客上下文验证文前、文后栏目和对应分析的手动首行缩进，覆盖 P／DIV／直接文字／BR、实际首字位置、两种预览、撤销重做、开关、刷新保存和桌面／手机。
+
+`clean-preview.js` 验证纯净全屏阅读的原生全屏、不支持和拒绝全屏三种情况，覆盖桌面／手机、两种版式、长文滚动、退出图标、Esc、浏览器退出全屏、焦点恢复、字号与文档内容保留。
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/column-indent.js
+npx --yes --package @playwright/cli playwright-cli -s=reading-check run-code --filename tests/browser/clean-preview.js
+```
+
 ## 统一退出列表与图片分页
 
 `list-exit.js` 验证列表菜单只保留一个退级／取消入口，与 Shift+Tab 一致：有序、无序、任务列表一级取消，二三级逐级退回，光标在文字中间仍整项处理。检查光标继续输入、格式、后续编号、撤销重做、文本类型显示、嵌套列表直接转普通文本真正退出所有 LI 祖先、刷新和手机菜单。

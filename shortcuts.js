@@ -74,6 +74,7 @@
     if(event.defaultPrevented||event.isComposing||event.keyCode===229||event.getModifierState('AltGraph')||document.querySelector('dialog[open]'))return;
     if(event.key==='Escape'&&!panel.hidden){event.preventDefault();showPanel(false);return;}
     if(!(event.ctrlKey||event.metaKey)||event.ctrlKey&&event.metaKey)return;
+    if(document.body.classList.contains('clean-preview')&&!(event.code==='KeyS'&&!event.altKey&&!event.shiftKey))return;
     const inEditor=!!event.target.closest('.rich-editor')&&!document.body.classList.contains('preview-mode');
     const item=shortcuts.find(item=>item.run&&(!item.when||item.when())&&(!item.editing||inEditor)&&(matches(event,item)||item.alternate&&matches(event,item.alternate)));
     if(!item)return;

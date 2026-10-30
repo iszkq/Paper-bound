@@ -80,8 +80,8 @@
 .rich-editor.paragraph-text { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); white-space: normal; }
 .rich-editor.paragraph-text p, .rich-editor.paragraph-text div { text-indent: var(--paragraph-indent); }
 .rich-editor.paragraph-text li p, .rich-editor.paragraph-text li div { text-indent: 0; }
-.rich-editor.paragraph-text [data-first-indent="off"] { --paragraph-indent: 0em; text-indent: var(--paragraph-indent); }
-.rich-editor.paragraph-text [data-first-indent="on"] { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
+.rich-editor :is(p, div)[data-first-indent="off"] { --paragraph-indent: 0em; text-indent: var(--paragraph-indent); }
+.rich-editor :is(p, div)[data-first-indent="on"] { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
 /* Only document contents use the chosen face; application controls keep their UI font. */
 .title-input, .meta-field, .block-title-input, .rich-editor, .rich-editor *, #paper, #paper * { font-family: var(--document-font, var(--font-reading)) !important; }
 .rich-editor [data-default-size="true"] { font-size: var(--body-size) !important; }
@@ -112,8 +112,8 @@ ul[data-task="true"] > li[data-checked="true"] { text-decoration: line-through; 
 .paper-paragraph { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
 .paper-paragraph p, .paper-paragraph div { text-indent: var(--paragraph-indent); }
 .paper-paragraph li p, .paper-paragraph li div { text-indent: 0; }
-.paper-paragraph [data-first-indent="off"], .paper-note-copy [data-first-indent="off"] { --paragraph-indent: 0em; text-indent: var(--paragraph-indent); }
-.paper-paragraph [data-first-indent="on"], .paper-note-copy [data-first-indent="on"] { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
+.paper [data-first-indent="off"] { --paragraph-indent: 0em; text-indent: var(--paragraph-indent); }
+.paper [data-first-indent="on"] { --paragraph-indent: 2em; text-indent: var(--paragraph-indent); }
 .paper-paragraph h1, .paper-paragraph h2, .paper-paragraph h3, .paper-paragraph h4, .paper-paragraph h5, .paper-paragraph h6 { margin: .45em 0; line-height: 1.45; text-indent: 0; }
 .paper-paragraph h1 { font-size: 2em; } .paper-paragraph h2 { font-size: 1.65em; } .paper-paragraph h3 { font-size: 1.35em; }
 .paper-paragraph h4 { font-size: 1.15em; } .paper-paragraph h5 { font-size: 1em; } .paper-paragraph h6 { font-size: .9em; }
@@ -141,6 +141,13 @@ ul[data-task="true"] > li[data-checked="true"] { text-decoration: line-through; 
 .table-layout .paper-paragraph, .table-layout .paper-note-copy { font-size: var(--preview-size); }
 .toast { position: fixed; right: 20px; bottom: 20px; z-index: 10; max-width: calc(100% - 40px); padding: 12px 18px; background: #f2faf6; color: #2e6550; border: 1px solid #d4e5db; border-radius: 6px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; font-size: 13px; }
 .toast.show { opacity: 1; }
+.small-icon-btn.preview-reading-toggle, .small-icon-btn.preview-reading-exit { --reading-control-size: 44px; width: var(--reading-control-size); height: var(--reading-control-size); flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.preview-reading-exit { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 1; color: #656d72; background: #f4f5f5; border: 1px solid var(--line); opacity: .65; }
+.preview-reading-exit:hover, .preview-reading-exit:focus-visible { opacity: 1; }
+body.clean-preview { overflow: hidden; }
+.clean-preview .topbar, .clean-preview .rich-toolbar, .clean-preview .preview-toolbar, .clean-preview .shortcuts-panel, .clean-preview .toast { display: none; }
+.clean-preview .preview-wrap { position: fixed; inset: 0; z-index: 30; min-height: 0; margin: 0; overflow: auto; overscroll-behavior: contain; padding: 24px 12px 64px; background: var(--page); }
+.clean-preview .paper { box-shadow: none; }
 .import-input { display: none; }
 button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 1050px) {
@@ -174,8 +181,10 @@ button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-v
 @media print {
   @page { size: A4; margin: 12mm; }
   body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .topbar, .workspace, .rich-toolbar, .preview-toolbar, .toast { display: none !important; }
+  body.clean-preview { overflow: visible; }
+  .topbar, .workspace, .rich-toolbar, .preview-toolbar, .preview-reading-exit, .toast { display: none !important; }
   .app, .preview-wrap { display: block !important; min-height: 0; padding: 0; background: #fff; }
+  .clean-preview .preview-wrap { position: static; overflow: visible; padding: 0; }
   .paper, .paper.table-layout { width: 100%; min-height: 0; margin: 0; padding: 0; box-shadow: none; --preview-size: 10pt; }
   .paper-columns-head, .content-pair { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
   .content-pair, .paper-custom-block { break-inside: avoid; }

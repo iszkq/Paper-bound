@@ -281,6 +281,41 @@
   app.prepareImageExport=prepareImageExport;
   // Preview sizing and image export share the same layout and document fonts.
   const toolbar=$('.preview-toolbar');
+  const previewWrap=$('.preview-wrap'),readingExit=$('#exitReadingBtn');
+  const readingButton=document.createElement('button');readingButton.id='readingPreviewBtn';readingButton.type='button';readingButton.className='small-icon-btn preview-reading-toggle';
+  readingButton.setAttribute('aria-label','纯净全屏预览');readingButton.setAttribute('aria-pressed','false');readingButton.title='纯净全屏预览';
+  readingButton.innerHTML='<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg>';toolbar.append(readingButton);
+  let readingScroll=0,readingStart=0,readingFullscreen=false;
+  async function exitReadingPreview(){
+    if(!document.body.classList.contains('clean-preview'))return;
+    const scroll=readingScroll+previewWrap.scrollTop-readingStart;
+    document.body.classList.remove('clean-preview');readingExit.hidden=true;readingButton.setAttribute('aria-pressed','false');readingFullscreen=false;
+    if(document.fullscreenElement===previewWrap)try{await document.exitFullscreen();}catch{}
+    window.scrollTo(0,scroll);readingButton.focus({preventScroll:true});
+  }
+  readingButton.onclick=async()=>{
+    if(document.body.classList.contains('clean-preview'))return;
+    const paperTop=$('#paper').getBoundingClientRect().top;readingScroll=window.scrollY;
+    document.body.classList.add('clean-preview');readingExit.hidden=false;readingButton.setAttribute('aria-pressed','true');
+    previewWrap.scrollTop=Math.max(0,$('#paper').getBoundingClientRect().top-paperTop);readingStart=previewWrap.scrollTop;
+    readingExit.focus({preventScroll:true});
+    // Keep the clean reading layout when native fullscreen is unavailable.
+    if(previewWrap.requestFullscreen)try{
+      await previewWrap.requestFullscreen();
+      readingFullscreen=document.fullscreenElement===previewWrap;
+      if(!document.body.classList.contains('clean-preview')&&document.fullscreenElement===previewWrap)await document.exitFullscreen();
+    }catch{}
+  };
+  readingExit.onclick=exitReadingPreview;
+  window.addEventListener('beforeprint',exitReadingPreview);
+  document.addEventListener('fullscreenchange',()=>{
+    if(document.fullscreenElement===previewWrap)readingFullscreen=true;
+    else if(readingFullscreen)exitReadingPreview();
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&document.body.classList.contains('clean-preview')){event.preventDefault();event.stopImmediatePropagation();exitReadingPreview();}
+  },true);
+  document.querySelectorAll('[data-view="edit"]').forEach(button=>button.addEventListener('click',exitReadingPreview));
   const exportButton=document.createElement('button');exportButton.id='imageExportBtn';exportButton.className='btn';exportButton.textContent='导出图片';exportButton.title='按内容自动分页：前面使用适度长图，末页能放进 A4 就用 A4，否则按内容加长；每张保留标题和顶部信息';toolbar.insertBefore(exportButton,$('#printPreviewBtn'));
   const scaleLabel=document.createElement('label');scaleLabel.className='preview-scale-label';scaleLabel.innerHTML='阅读字号 <select id="previewReadingSize" aria-label="预览阅读字号"><option value="17">17</option><option value="19">19</option><option value="22">22</option><option value="24">24</option></select>';toolbar.insertBefore(scaleLabel,exportButton);
   $('#previewReadingSize').onchange=e=>$('#paper').style.setProperty('--preview-reading-size',e.target.value+'px');
